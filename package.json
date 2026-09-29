@@ -14,7 +14,8 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:banco": "supabase/testes/preparar-postgres.sh > /dev/null && supabase/testes/executar.sh",
-    "local": "ferramentas/local/subir.sh"
+    "local": "ferramentas/local/subir.sh",
+    "sql:instalar": "ferramentas/gerar-instalar.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
