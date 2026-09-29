@@ -25,6 +25,8 @@ export function mensagemDeErro(e: unknown): string {
     if (/rate limit|too many requests/i.test(m)) return 'Muitas tentativas seguidas. Aguarde um minuto e tente de novo.'
     if (/Password should be at least/i.test(m)) return 'A senha deve ter pelo menos 6 caracteres.'
     if (/New password should be different/i.test(m)) return 'A nova senha deve ser diferente da atual.'
+    if (/Limite de armazenamento/i.test(m))
+      return 'Limite de armazenamento da empresa atingido. Exclua fotos ou documentos que não são mais necessários, ou peça ao Obtra para ampliar o limite.'
     if (/row-level security|permission denied/i.test(m)) return 'Você não tem permissão para esta ação.'
     if (/duplicate key.*(nome|empresa_id)/i.test(m)) return 'Já existe um cadastro com esse nome.'
     if (/duplicate key|already exists/i.test(m)) return 'Esse registro já existe.'

@@ -86,13 +86,47 @@ function novoId(): string {
   return crypto.randomUUID()
 }
 
+export const MENSAGEM_COTA = 'Limite de armazenamento da empresa atingido'
+
+/** Espaço da empresa (null quando o usuário não enxerga a linha — o servidor decide). */
+async function espacoDaEmpresa(empresaId: string): Promise<{ usado: number; limite: number } | null> {
+  const { data } = await supabase.from('empresas').select('armazenamento_usado_bytes, limite_armazenamento_mb').eq('id', empresaId).maybeSingle()
+  if (!data) return null
+  const d = data as { armazenamento_usado_bytes: number | string; limite_armazenamento_mb: number }
+  return { usado: Number(d.armazenamento_usado_bytes) || 0, limite: d.limite_armazenamento_mb * 1024 * 1024 }
+}
+
+/** O Storage ainda aceita arquivos desta empresa? (mesma regra da política do bucket) */
+async function bucketTemEspaco(caminho: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('storage_tem_espaco', { p_nome: caminho })
+  return error ? true : data !== false
+}
+
+/**
+ * Confere a cota ANTES de enviar. O banco é quem tranca (política do bucket e
+ * gatilho da cota), mas o Storage recusa com um genérico "row-level security"
+ * — sem esta conferência o usuário leria "sem permissão" em vez de "limite
+ * atingido", e ainda gastaria o envio à toa.
+ */
+export async function garantirEspaco(empresaId: string, bytesNovos: number) {
+  const e = await espacoDaEmpresa(empresaId)
+  if (e && e.usado + bytesNovos > e.limite) throw new Error(MENSAGEM_COTA)
+  if (!(await bucketTemEspaco(`${empresaId}/`))) throw new Error(MENSAGEM_COTA)
+}
+
 async function subir(caminho: string, blob: Blob, mime: string) {
   const { error } = await supabase.storage.from(BUCKET).upload(caminho, blob, {
     contentType: mime,
     cacheControl: '31536000',
     upsert: false,
   })
-  if (error) throw error
+  if (!error) return
+  // Recusa da política do bucket: se o motivo for a cota (alguém encheu o
+  // espaço no meio do caminho), diga isso com todas as letras.
+  if (/row-level security|unauthorized/i.test(error.message) && !(await bucketTemEspaco(caminho))) {
+    throw new Error(MENSAGEM_COTA)
+  }
+  throw error
 }
 
 export async function removerArquivos(caminhos: (string | null | undefined)[]) {
@@ -112,6 +146,7 @@ export interface EnvioFoto {
 /** Comprime, sobe foto + miniatura e grava a linha em `fotos`. */
 export async function enviarFoto(arquivo: File, destino: EnvioFoto): Promise<Foto> {
   const { foto, mini } = await comprimirFoto(arquivo)
+  await garantirEspaco(destino.empresaId, foto.blob.size + mini.blob.size)
   const id = novoId()
   const base = `${destino.empresaId}/${destino.obraId}/fotos/${id}`
   const path = `${base}.${extensaoDoMime(foto.mime)}`
@@ -150,6 +185,8 @@ export async function excluirFoto(foto: Pick<Foto, 'id' | 'path' | 'thumb_path'>
 /** Capa da obra ou logo: versão média + miniatura. */
 export async function enviarCapa(arquivo: File, empresaId: string, obraId: string) {
   const { foto, mini } = await comprimirFoto(arquivo)
+  // capa não entra na soma de fotos/documentos, mas ocupa o bucket
+  if (!(await bucketTemEspaco(`${empresaId}/`))) throw new Error(MENSAGEM_COTA)
   const id = novoId()
   const base = `${empresaId}/${obraId}/capa/${id}`
   const capa_path = `${base}.${extensaoDoMime(foto.mime)}`
@@ -162,6 +199,7 @@ export async function enviarCapa(arquivo: File, empresaId: string, obraId: strin
 export async function enviarLogo(arquivo: File, empresaId: string) {
   const { comprimirImagem } = await import('./imagem')
   const img = await comprimirImagem(arquivo, 512, 0.85)
+  if (!(await bucketTemEspaco(`${empresaId}/`))) throw new Error(MENSAGEM_COTA)
   const caminho = `${empresaId}/logo/${novoId()}.${extensaoDoMime(img.mime)}`
   await subir(caminho, img.blob, img.mime)
   return caminho
@@ -169,6 +207,7 @@ export async function enviarLogo(arquivo: File, empresaId: string) {
 
 export async function enviarDocumento(arquivo: File, empresaId: string, obraId: string, visivelCliente: boolean): Promise<Documento> {
   const blob = await compactarPdf(arquivo)
+  await garantirEspaco(empresaId, blob.size)
   const path = `${empresaId}/${obraId}/docs/${novoId()}.pdf`
   await subir(path, blob, 'application/pdf')
   const { data, error } = await supabase

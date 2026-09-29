@@ -271,8 +271,10 @@ async function roteiro(admin) {
     conferir('após o admin aprovar, o cliente vê a foto e assina a miniatura', !eA && l2?.length === 1 && !eS2, { eA, l2, eS2 })
     const { error: eC } = await cliente.sb.from('relatorio_comentarios').insert({ relatorio_id: novoRdo, texto: 'Obrigado pelo registro!' })
     conferir('cliente comenta no RDO aprovado', !eC, eC)
-    const { data: notas } = await cliente.sb.from('relatorio_notas_compras').select('fornecedor, valor').eq('relatorio_id', novoRdo)
-    conferir('cliente vê a nota de compra do RDO aprovado', notas?.length === 1, notas)
+    // notas de compras são internas (migração 0007): o cliente recebe lista vazia, sem erro
+    const { data: notas, error: eNc } = await cliente.sb.from('relatorio_notas_compras').select('fornecedor, valor').eq('relatorio_id', novoRdo)
+    const { data: notasEq } = await eng.sb.from('relatorio_notas_compras').select('fornecedor, valor').eq('relatorio_id', novoRdo)
+    conferir('cliente NÃO vê a nota de compra (nem do RDO aprovado); a equipe vê', !eNc && notas?.length === 0 && notasEq?.length === 1, { eNc, notas, notasEq })
 
     const { data: hist } = await admin.sb.from('historico').select('acao, usuario_nome, descricao').eq('entidade_id', novoRdo).order('id')
     conferir('histórico do RDO: criou → enviou_aprovacao → aprovou, com nomes', JSON.stringify(hist?.map((h) => h.acao)) === JSON.stringify(['criou', 'enviou_aprovacao', 'aprovou']) && hist[2].usuario_nome === 'Carla Menezes', hist)

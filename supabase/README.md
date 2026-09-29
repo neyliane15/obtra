@@ -11,7 +11,9 @@ testes/       suíte de banco num Postgres local (npm run test:banco)
 
 ## Instalar num projeto Supabase
 
-1. **Migrações, em ordem** (`20260929000001_…` até a última). Qualquer um dos dois:
+1. **Migrações, em ordem** (`20260929000001_…` até a última). Qualquer um dos três:
+   - SQL Editor: colar e rodar `instalar.sql` (todas as migrações num arquivo só,
+     gerado por `npm run sql:instalar` — regere sempre que mudar `migrations/`), ou
    - `supabase link --project-ref SEU_REF && supabase db push`, ou
    - SQL Editor: colar e rodar cada arquivo de `migrations/`, na ordem do nome.
 
@@ -38,6 +40,10 @@ testes/       suíte de banco num Postgres local (npm run test:banco)
 
 O bucket `obtra` (privado, 15 MB, webp/jpeg/png/pdf) e as políticas de
 `storage.objects` são criados pela migração `…05_storage.sql`.
+A `…07_notas_internas_e_arquivos_orfaos.sql` fecha as notas de compras ao
+cliente (só a equipe lê `relatorio_notas_compras`) e deixa o admin limpar no
+Storage a pasta de uma obra já excluída (sem ela os arquivos ficavam órfãos,
+ocupando a cota).
 
 ## Testar localmente
 
@@ -59,6 +65,7 @@ tem de desfazer. Os testes vestem cada usuário com
 o quê, `search_path`, RLS ligada, índice em toda FK, `(select auth.uid())` nas
 políticas), isolamento entre empresas em todas as tabelas e no bucket,
 escalonamento de privilégio, cliente, cota, numeração, histórico e o formato
-das contas em `auth.users`/`auth.identities`.
+das contas em `auth.users`/`auth.identities`. `testes/50_entrega.sql` cobre a
+migração 0007 (notas internas; limpeza da pasta de obra excluída).
 
 Para o sistema inteiro rodando (API + login + Storage): `ferramentas/local/`.

@@ -33,7 +33,8 @@ Você vai precisar de três contas gratuitas: **GitHub** (já tem — o código 
    (ele junta todas as migrações na ordem certa), copie **todo** o conteúdo, cole no editor e clique **Run**.
    - Deve terminar com "Success. No rows returned".
    - Alternativa: rodar um por um os arquivos de `supabase/migrations/`, na ordem do nome.
-   - Pode rodar de novo sem medo: o SQL é idempotente.
+   - Pode rodar de novo sem medo: o SQL é idempotente. **Atualizou o código?** Rode o `instalar.sql`
+     novo por cima do banco existente — é assim que as migrações novas (ex.: `…07_notas_internas_e_arquivos_orfaos.sql`) chegam.
 3. Confira: em **Table Editor** devem aparecer as tabelas `empresas`, `obras`, `relatorios`, `fotos`…
    e em **Storage** o bucket `obtra` (privado).
 
@@ -60,6 +61,11 @@ Em **Authentication → URL Configuration** (preencha depois do passo 6, quando 
 - **Redirect URLs:** `https://seu-projeto.vercel.app/**`
 
 (Isso faz o link de "Esqueci minha senha" voltar para o sistema.)
+
+> O e-mail de recuperação sai pelo servidor de e-mail embutido do Supabase, que tem limite baixo de
+> envios por hora e serve para testes. Para produção, configure um SMTP próprio em
+> **Authentication → Emails → SMTP Settings**. Enquanto isso, o administrador pode redefinir a senha de
+> qualquer pessoa da equipe em **Usuários & Clientes → ⋯ → Redefinir senha** (não depende de e-mail).
 
 ### 5. Pegar as chaves do Supabase
 
@@ -127,7 +133,13 @@ Verificações:
 npm run typecheck && npm test && npm run build
 npm run test:banco          # suíte de segurança do banco (precisa de Postgres 16 local)
 ferramentas/local/subir.sh  # sistema inteiro local, sem nuvem (Postgres + PostgREST + portão)
+npm run test:e2e            # ponta a ponta no navegador (Playwright), desktop 1440 px e celular 390 px
+npm run sql:instalar        # regera supabase/instalar.sql depois de mexer em supabase/migrations/
 ```
+
+A suíte `e2e/` recria o ambiente local (banco + arquivos de demonstração) a cada execução
+(`E2E_SEM_RESET=1` reaproveita o que estiver no ar) e falha se aparecer erro no console do navegador
+ou resposta HTTP 4xx/5xx não prevista. Relatório em `playwright-report/`.
 
 Veja `supabase/README.md` e `ferramentas/local/README.md` para detalhes.
 

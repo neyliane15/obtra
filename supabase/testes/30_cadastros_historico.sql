@@ -158,7 +158,8 @@ begin
   perform set_config('teste.rdo_o2', r::text, false);
 end $$;
 
--- cliente vê notas de compras de RDO aprovado da obra dele
+-- notas de compras são internas: o cliente não as vê nem no RDO aprovado da
+-- obra dele (decisão de produto — migração 0007; ver também 50_entrega.sql)
 do $$
 declare r uuid := 'a0000000-0000-4000-8000-000000000e02';   -- R2: aprovado, O1
 begin
@@ -167,8 +168,8 @@ begin
   insert into relatorio_notas_compras (relatorio_id, fornecedor, valor)
   values ('a0000000-0000-4000-8000-000000000e01', 'Interna', 1);
   perform teste.vestir('t.cliente.a@teste.obtra');
-  perform teste.conferir('cliente vê notas do RDO aprovado e não as do RDO aberto',
-    teste.conta(format('select count(*) from relatorio_notas_compras where relatorio_id = %L', r)) = 1
+  perform teste.conferir('cliente não vê notas nem do RDO aprovado nem do aberto',
+    teste.conta(format('select count(*) from relatorio_notas_compras where relatorio_id = %L', r)) = 0
     and teste.conta($q$select count(*) from relatorio_notas_compras
                       where relatorio_id = 'a0000000-0000-4000-8000-000000000e01'$q$) = 0);
 end $$;

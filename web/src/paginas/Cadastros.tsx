@@ -26,7 +26,12 @@ interface CampoDef {
   largura?: string
 }
 
-const CONFIG: Record<Rota, { tabela: TabelaCadastro; titulo: string; singular: string; descricao: string; icone: ReactNode; campos: CampoDef[] }> = {
+/** Concordância: "Nova função" / "Função cadastrada", "Novo material" / "Material cadastrado". */
+function flexao(feminino?: boolean) {
+  return { novo: feminino ? 'Nova' : 'Novo', nenhum: feminino ? 'Nenhuma' : 'Nenhum', cadastrado: feminino ? 'cadastrada' : 'cadastrado' }
+}
+
+const CONFIG: Record<Rota, { tabela: TabelaCadastro; titulo: string; singular: string; feminino?: boolean; descricao: string; icone: ReactNode; campos: CampoDef[] }> = {
   'mao-de-obra': {
     tabela: 'colaboradores',
     titulo: 'Mão de Obra',
@@ -46,6 +51,7 @@ const CONFIG: Record<Rota, { tabela: TabelaCadastro; titulo: string; singular: s
     tabela: 'funcoes',
     titulo: 'Funções',
     singular: 'função',
+    feminino: true,
     descricao: 'Funções da obra (pedreiro, servente, armador…) para agilizar o preenchimento.',
     icone: <BriefcaseBusiness className="size-3.5" />,
     campos: [{ chave: 'nome', rotulo: 'Nome da função', obrigatorio: true, placeholder: 'Pedreiro' }],
@@ -126,7 +132,7 @@ function PaginaCadastro({ rota }: { rota: Rota }) {
         sobretitulo="Cadastros"
         titulo={cfg.titulo}
         subtitulo={`${plural(total, 'ativo')} · ${cfg.descricao}`}
-        acoes={<Botao variante="ambar" icone={<Plus className="size-4" />} onClick={() => setEditando('novo')}>Novo {cfg.singular}</Botao>}
+        acoes={<Botao variante="ambar" icone={<Plus className="size-4" />} onClick={() => setEditando('novo')}>{flexao(cfg.feminino).novo} {cfg.singular}</Botao>}
       />
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <label className="relative sm:w-80">
@@ -143,10 +149,10 @@ function PaginaCadastro({ rota }: { rota: Rota }) {
         <div className="cartao space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Esqueleto key={i} className="h-10" />)}</div>
       ) : !itens.length ? (
         <Vazio
-          titulo={lista.data?.length ? 'Nada encontrado' : `Nenhum ${cfg.singular} cadastrado`}
+          titulo={lista.data?.length ? 'Nada encontrado' : `${flexao(cfg.feminino).nenhum} ${cfg.singular} ${flexao(cfg.feminino).cadastrado}`}
           descricao={cfg.descricao}
           icone={cfg.icone}
-          acao={<Botao variante="ambar" icone={<Plus className="size-4" />} onClick={() => setEditando('novo')}>Novo {cfg.singular}</Botao>}
+          acao={<Botao variante="ambar" icone={<Plus className="size-4" />} onClick={() => setEditando('novo')}>{flexao(cfg.feminino).novo} {cfg.singular}</Botao>}
         />
       ) : (
         <div className="cartao overflow-hidden">
@@ -192,6 +198,7 @@ function PaginaCadastro({ rota }: { rota: Rota }) {
         aoFechar={() => setEditando(null)}
         tabela={cfg.tabela}
         singular={cfg.singular}
+        feminino={cfg.feminino}
         campos={cfg.campos}
         empresaId={empresaId}
         funcoes={(funcoes.data ?? []).filter((f) => f.ativo)}
@@ -201,12 +208,13 @@ function PaginaCadastro({ rota }: { rota: Rota }) {
 }
 
 function ModalCadastro({
-  alvo, aoFechar, tabela, singular, campos, empresaId, funcoes,
+  alvo, aoFechar, tabela, singular, feminino, campos, empresaId, funcoes,
 }: {
   alvo: Registro | 'novo' | null
   aoFechar: () => void
   tabela: TabelaCadastro
   singular: string
+  feminino?: boolean
   campos: CampoDef[]
   empresaId: string
   funcoes: { id: string; nome: string }[]
@@ -239,7 +247,7 @@ function ModalCadastro({
       if (/duplicate|unique/i.test(r.error.message)) return setErro('Já existe um cadastro com este nome.')
       return avisos.erro(r.error)
     }
-    avisos.sucesso(reg ? 'Alterações salvas.' : `${singular[0]!.toUpperCase()}${singular.slice(1)} cadastrado.`)
+    avisos.sucesso(reg ? 'Alterações salvas.' : `${singular[0]!.toUpperCase()}${singular.slice(1)} ${flexao(feminino).cadastrado}.`)
     void qc.invalidateQueries({ queryKey: ['cadastro'] })
     aoFechar()
   }
@@ -248,7 +256,7 @@ function ModalCadastro({
     <Modal
       aberto={!!alvo}
       aoFechar={aoFechar}
-      titulo={reg ? `Editar ${singular}` : `Novo ${singular}`}
+      titulo={reg ? `Editar ${singular}` : `${flexao(feminino).novo} ${singular}`}
       codigo={`CADASTRO · ${tabela.toUpperCase()}`}
       largura="sm"
       rodape={<><Botao variante="secundario" onClick={aoFechar}>Cancelar</Botao><Botao type="submit" form="form-cadastro" carregando={salvando}>Salvar</Botao></>}

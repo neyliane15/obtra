@@ -163,7 +163,8 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
       avisos.erro('Pluviometria inválida.')
       return null
     }
-    if (novo && !e.obraId) {
+    // (?obra= na URL pode trazer uma obra que o usuário não enxerga)
+    if (novo && (!e.obraId || (obras.data && !obras.data.some((x) => x.id === e.obraId)))) {
       avisos.erro('Escolha a obra do relatório.')
       return null
     }
@@ -226,7 +227,7 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
     void qc.invalidateQueries({ queryKey: ['relatorios-recentes'] })
     void qc.invalidateQueries({ queryKey: ['painel'] })
     return id
-  }, [e, base, r?.id, novo, avisos, qc])
+  }, [e, base, r?.id, novo, avisos, qc, obras.data])
 
   async function acao(tipo: 'salvar' | 'revisar' | 'aprovar' | 'preenchendo') {
     if (tipo === 'aprovar') {

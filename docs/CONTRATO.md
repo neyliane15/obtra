@@ -161,7 +161,7 @@ No fluxo "Novo RDO" o relatório só é criado (RPC `criar_relatorio`) ao escolh
 - `relatorio_mao_obra`: + `colaborador_id uuid references colaboradores on delete set null`, `funcao` continua texto (preenchido com a função do colaborador ou digitado).
 - `relatorio_equipamentos`: + `equipamento_id uuid references equipamentos on delete set null`.
 - `relatorio_materiais`: + `material_id uuid references materiais on delete set null`, + `unidade text`. `quantidade` passa a `numeric(12,2)` (ou mantém text — o back decide e documenta; o front trata ambos).
-- Nova `relatorio_notas_compras`: `id, relatorio_id, ordem, fornecedor text, numero_nota text, valor numeric(12,2), descricao text, criado_em` (mesmas regras dos outros filhos).
+- Nova `relatorio_notas_compras`: `id, relatorio_id, ordem, fornecedor text, numero_nota text, valor numeric(12,2), descricao text, criado_em` (mesmas regras dos outros filhos, **exceto a leitura**: notas de compras são internas — o cliente não as lê, nem no RDO aprovado; ver migração 0007).
 - `criar_relatorio(p_obra, p_data, p_copiar_anterior)` copia também horário (entrada/saída/intervalo) e `responsavel` do anterior; `responsavel` default = nome do perfil.
 - Nova `historico`: `id bigserial/uuid, empresa_id uuid, obra_id uuid null, usuario_id uuid null, usuario_nome text, acao text ('criou','editou','excluiu','enviou_aprovacao','aprovou','reabriu','enviou_foto', ...), entidade text ('obra','relatorio','foto','documento','usuario','cadastro'), entidade_id uuid, descricao text, criado_em`. Alimentada por triggers (obras insert/update/delete, relatorios insert/delete e mudança de status, fotos insert/delete, documentos insert/delete). Leitura: master e equipe da empresa (cliente não). Ninguém escreve direto (só triggers security definer). Índice por (empresa_id, criado_em desc).
 - `painel_resumo()` inclui também `relatorios_pendentes` (status revisar).
@@ -192,6 +192,8 @@ Detalhes que o texto acima não fixava, ou em que o back foi mais estrito por se
 - Leitura pelo **cliente**: só os arquivos que ele já enxerga pelas tabelas — `capa_path/capa_thumb_path` das obras dele, `path/thumb_path` de fotos sem RDO ou de RDO aprovado, `path` de documentos `visivel_cliente`, e o logo da empresa. (Sem isso, um `list` na pasta da obra entregaria fotos de RDO não aprovado.) Consequência: para o cliente, `createSignedUrls` devolve erro por item nos arquivos que ele não pode ver.
 - Escrita (equipe): o 2º segmento tem de ser `logo` (só admin/master) ou o id de uma **obra da própria empresa**. Com a cota estourada o Storage recusa novos envios **e sobrescritas (upsert)**; o "usado" aqui é o maior entre o contabilizado em fotos/documentos e o que de fato está no bucket sob `{empresa_id}/` (arquivos órfãos contam).
 - Trocar/apagar o **arquivo** de uma foto de RDO aprovado: só admin/master (o colaborador recebe 0 linhas / erro por item no `remove`). Exclua a linha primeiro e depois o arquivo, como o front já faz.
+- Pasta de obra **já excluída** (`{empresa}/{obra}/` sem a obra no banco): o admin da empresa (e o master) pode apagar os arquivos — é assim que o front limpa o Storage depois de excluir a obra. Gravar nela continua proibido (migração 0007).
+- Cota cheia: o Storage recusa com "row-level security". O front confere antes de enviar (`empresas.armazenamento_usado_bytes` + RPC `storage_tem_espaco`) e mostra `Limite de armazenamento da empresa atingido`.
 
 ### Embeds úteis no PostgREST (nomes das FKs)
 - `relatorios`: `criado:perfis!relatorios_criado_por_fkey(nome)`, `aprovador:perfis!relatorios_aprovado_por_fkey(nome)`, `obras(nome)`.
@@ -213,6 +215,9 @@ Para as políticas (calculadas uma vez por consulta): `empresa_da_equipe()`, `em
 - Item do RDO só aponta para cadastro da **mesma empresa** do relatório (erro `Colaborador de outra empresa` etc.). `colaboradores.funcao_id` idem.
 - Cadastros: `unique(empresa_id, nome)` em `funcoes`, `materiais`, `equipamentos` (não em `colaboradores` — homônimos existem). `empresa_id` não muda. Master precisa informar `empresa_id` (erro `Informe a empresa do cadastro`).
 - `historico`: `id bigint` (identity). `obra_id`/`usuario_id` **sem FK** (o registro sobrevive à exclusão). `usuario_nome` = nome do perfil no momento, ou `Sistema` (SQL/carga). Ações: `criou`, `editou`, `excluiu`, `enviou_aprovacao`, `aprovou`, `reabriu`, `devolveu` (revisar → preenchendo), `enviou_foto`, `enviou_documento`. Entidades: `obra`, `relatorio`, `foto`, `documento`, `usuario`, `cadastro`. Eventos: obras (insert/update/delete — status descrito "a → b"), relatórios (insert/delete/mudança de status; edições de conteúdo não geram linha), fotos e documentos (insert/delete), perfis com empresa (insert/delete), cadastros (insert/delete). Exclusões em cascata (obra → seus RDOs/fotos; empresa inteira) não geram linhas extras. `descricao` já vem pronta para exibir (ex.: `RD-4 · Residencial Vista Azul enviado para aprovação`).
+
+### Notas de compras (decisão de produto, migração 0007)
+- `relatorio_notas_compras` é lida só pela equipe da empresa e pelo master (`eh_equipe(empresa_do_relatorio(relatorio_id))`). Para o cliente o select volta vazio (sem erro) e o embed `relatorio_notas_compras(*)` vem `[]`; o PDF gerado para o cliente também as omite.
 
 ### Ambiente local
 - Usuário demo extra: `mestre@construtoraaurora.com.br` (colaborador, "Antônio Lima").

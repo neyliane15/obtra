@@ -507,9 +507,15 @@ begin
     teste.conta(format('select count(*) from relatorios where empresa_id = %L', X)) = 1
     and teste.conta(format('select count(*) from relatorios where id = %L', teste.a('RX2'))) = 1);
   for f in select * from teste.filhos() loop
-    perform teste.conferir(format('cliente: %s só do RDO aprovado', f.tabela),
-      teste.conta(format('select count(*) from %I where relatorio_id in (%L, %L)', f.tabela, teste.a('RX1'), teste.a('RX3'))) = 0
-      and teste.conta(format('select count(*) from %I where relatorio_id = %L', f.tabela, teste.a('RX2'))) >= 1);
+    if f.tabela = 'relatorio_notas_compras' then
+      -- notas são internas da construtora (0007): nem as do aprovado
+      perform teste.conferir('cliente: relatorio_notas_compras nunca (nem do RDO aprovado)',
+        teste.conta(format('select count(*) from %I where relatorio_id in (%L, %L, %L)', f.tabela, teste.a('RX1'), teste.a('RX2'), teste.a('RX3'))) = 0);
+    else
+      perform teste.conferir(format('cliente: %s só do RDO aprovado', f.tabela),
+        teste.conta(format('select count(*) from %I where relatorio_id in (%L, %L)', f.tabela, teste.a('RX1'), teste.a('RX3'))) = 0
+        and teste.conta(format('select count(*) from %I where relatorio_id = %L', f.tabela, teste.a('RX2'))) >= 1);
+    end if;
     if f.tabela <> 'relatorio_comentarios' then
       perform teste.conferir(format('cliente: não escreve em %s (nem no aprovado)', f.tabela),
         teste.erro(format('insert into %I (relatorio_id, %I) values (%L, %L)', f.tabela, f.coluna, teste.a('RX2'), 'x')) is not null

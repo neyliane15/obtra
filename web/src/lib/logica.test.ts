@@ -168,3 +168,17 @@ describe('campo de hora (24 h)', async () => {
     expect(completarHora('1275')).toBeNull()
   })
 })
+
+describe('mensagemDeErro', async () => {
+  const { mensagemDeErro } = await import('./supabase')
+  it('cota estourada: diz o que houve e o que fazer', () => {
+    const m = mensagemDeErro({ message: 'Limite de armazenamento da empresa atingido' })
+    expect(m).toMatch(/^Limite de armazenamento da empresa atingido\. /)
+    expect(m).toMatch(/Exclua fotos ou documentos/)
+  })
+  it('traduz os erros comuns do Supabase', () => {
+    expect(mensagemDeErro({ message: 'Invalid login credentials' })).toBe('E-mail ou senha incorretos.')
+    expect(mensagemDeErro({ message: 'new row violates row-level security policy' })).toBe('Você não tem permissão para esta ação.')
+    expect(mensagemDeErro({ message: 'duplicate key value violates unique constraint "funcoes_empresa_id_nome_key"' })).toBe('Já existe um cadastro com esse nome.')
+  })
+})

@@ -4,6 +4,7 @@
 ferramentas/local/subir.sh          # Postgres + PostgREST + portão + fotos demo; grava .env.local
 node ferramentas/local/fumaca.mjs   # prova de fumaça com o supabase-js de verdade (limpa o que cria)
 npm run dev
+npm run test:e2e                    # Playwright de ponta a ponta (recria este ambiente antes)
 ```
 
 API em `http://127.0.0.1:54321`; a anon key é impressa pelo script e gravada em

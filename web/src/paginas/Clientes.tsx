@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Building, HardHat, Search, UserPlus, UserRoundCheck } from 'lucide-react'
 import type { Perfil } from '@/tipos/banco'
@@ -68,6 +68,7 @@ export default function Clientes({ embutido = false }: { embutido?: boolean }) {
       )}
       <ModalNovoUsuario aberto={novo} aoFechar={() => setNovo(false)} papeis={['cliente']} empresaIdFixa={empresaId} />
       <ModalObrasCliente
+        key={editando?.id ?? 'fechado'}
         cliente={editando}
         aoFechar={() => setEditando(null)}
         obras={(obras.data ?? []).filter((o) => o.empresa_id === empresaId).map((o) => ({ id: o.id, nome: o.nome }))}
@@ -80,12 +81,10 @@ export default function Clientes({ embutido = false }: { embutido?: boolean }) {
 function ModalObrasCliente({ cliente, aoFechar, obras, atuais }: { cliente: Perfil | null; aoFechar: () => void; obras: { id: string; nome: string }[]; atuais: string[] }) {
   const avisos = useAvisos()
   const qc = useQueryClient()
-  const [sel, setSel] = useState<string[]>([])
+  // montado de novo a cada cliente (key): a seleção já nasce com as obras
+  // atuais — sem um quadro com a seleção vazia antes de um efeito corrigir
+  const [sel, setSel] = useState<string[]>(atuais)
   const [salvando, setSalvando] = useState(false)
-  useEffect(() => {
-    if (cliente) setSel(atuais)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cliente])
   async function salvar() {
     if (!cliente) return
     setSalvando(true)
