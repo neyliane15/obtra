@@ -15,7 +15,7 @@ export function CascaPortal() {
             <Logo tamanho={24} />
             {empresa && (
               <>
-                <span className="h-6 w-px bg-linha-forte" aria-hidden />
+                <span className="hidden h-6 w-px bg-linha-forte sm:block" aria-hidden />
                 <span className="flex min-w-0 items-center gap-2">
                   {empresa.logo_path && (
                     <ImagemAssinada caminho={empresa.logo_path} alt="" className="size-6 rounded bg-white" classeImg="!object-contain" />

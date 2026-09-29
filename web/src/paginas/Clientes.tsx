@@ -12,7 +12,7 @@ import { ModalNovoUsuario, SeletorObras } from '@/componentes/usuarios'
 import { PrecisaEmpresa } from '@/componentes/PrecisaEmpresa'
 import { useAvisos } from '@/componentes/avisos'
 
-export default function Clientes() {
+export default function Clientes({ embutido = false }: { embutido?: boolean }) {
   const { empresaId } = useSessao()
   const perfis = usePerfis(empresaId)
   const vinculos = useVinculos(empresaId)
@@ -26,21 +26,24 @@ export default function Clientes() {
   }, [perfis.data, busca])
   const nomeObra = (id: string) => obras.data?.find((o) => o.id === id)?.nome
 
-  if (!empresaId) return (<><CabecalhoPagina sobretitulo="Gestão" titulo="Clientes" /><PrecisaEmpresa oque="os clientes" /></>)
+  if (!empresaId) return (<>{!embutido && <CabecalhoPagina sobretitulo="Gestão" titulo="Clientes" />}<PrecisaEmpresa oque="os clientes" /></>)
 
   return (
     <>
-      <CabecalhoPagina
+      {!embutido && <CabecalhoPagina
         sobretitulo="Portal do cliente"
         titulo="Clientes"
         subtitulo="Cada cliente recebe um acesso único para acompanhar as obras dele: relatórios aprovados, fotos e documentos liberados."
         acoes={<Botao icone={<UserPlus className="size-4" />} onClick={() => setNovo(true)}>Novo cliente</Botao>}
-      />
-      <label className="relative mb-4 block sm:w-80">
+      />}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <label className="relative block sm:w-80">
         <span className="sr-only">Buscar</span>
         <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-tinta-fraca" />
         <input className="campo pl-8" placeholder="Buscar cliente…" value={busca} onChange={(e) => setBusca(e.target.value)} />
       </label>
+      {embutido && <div className="flex items-center gap-3"><span className="hidden text-[12px] text-tinta-suave lg:block">Acesso único: relatórios aprovados, fotos e documentos liberados</span><Botao variante="ambar" icone={<UserPlus className="size-4" />} onClick={() => setNovo(true)}>Novo cliente</Botao></div>}
+      </div>
       {perfis.isError ? (
         <Erro mensagem={mensagemDeErro(perfis.error)} />
       ) : (

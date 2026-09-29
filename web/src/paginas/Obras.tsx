@@ -134,7 +134,7 @@ export default function Obras() {
       ) : (
         <>
           <div className={clsx('cartao overflow-hidden', visao === 'tabela' ? 'hidden md:block' : 'hidden')}>
-            <div className="rolagem-fina overflow-x-auto">
+            <div className="rolagem-fina relative overflow-x-auto">
               <table className="w-full min-w-[980px] text-left text-[12.5px]">
                 <thead>
                   <tr className="border-b border-linha bg-papel/80">

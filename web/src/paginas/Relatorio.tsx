@@ -115,7 +115,7 @@ function estadoDe(d: RelatorioCompleto | null, obraId: string, responsavel: stri
 /** Linhas sem o texto principal não são gravadas. */
 export function linhaPreenchida(chave: ChaveLista, l: Record<string, unknown>): boolean {
   const texto = (k: string) => typeof l[k] === 'string' && (l[k] as string).trim().length > 0
-  if (chave === 'maoObra') return texto('funcao')
+  if (chave === 'maoObra') return texto('funcao') || !!l.colaborador_id
   if (chave === 'equipamentos') return texto('nome')
   if (chave === 'notas') return texto('fornecedor') || texto('numero_nota') || texto('descricao') || l.valor !== null
   return texto('descricao')
@@ -208,6 +208,8 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
         const linhas = atuais.map((l, i) => {
           const copia: Record<string, unknown> = { ...l, relatorio_id: id, ordem: i }
           delete copia.criado_em
+          if (chave === 'materiais') copia.quantidade = lerNumero(copia.quantidade as string | number | null)
+          if (chave === 'notas') copia.valor = lerNumero(copia.valor as string | number | null)
           return copia
         })
         const { error: eu } = await supabase.from(TABELAS[chave]).upsert(linhas, { onConflict: 'id' })
@@ -373,7 +375,7 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
       <div className="flex flex-col gap-3.5">
         {/* 01 cabeçalho */}
         <Painel n="01" titulo="Cabeçalho do Relatório" icone={<FileText />}>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
             <Campo rotulo="Nº do relatório">
               <Entrada readOnly value={r ? codigoRelatorio(r.numero) : 'RD-—'} className="num font-mono" tabIndex={-1} />
             </Campo>
@@ -806,7 +808,7 @@ function SecaoMaoObra({ itens, editavel, empresaId, relId, setLista, total }: { 
                 value={m.colaborador_id ?? ''}
                 onChange={(ev) => {
                   const c = colaboradores.data?.find((x) => x.id === ev.target.value)
-                  up(c ? { colaborador_id: c.id, funcao: nomeFuncao(c.funcao_id) || m.funcao || c.nome, tipo: c.tipo, empresa_terceira: c.empresa_terceira, quantidade: 1 } : { colaborador_id: null })
+                  up(c ? { colaborador_id: c.id, colaborador_nome: c.nome, funcao: nomeFuncao(c.funcao_id) || m.funcao, tipo: c.tipo, empresa_terceira: c.empresa_terceira, quantidade: 1 } : { colaborador_id: null, colaborador_nome: null })
                 }}
                 aria-label="Colaborador"
               >
@@ -824,7 +826,7 @@ function SecaoMaoObra({ itens, editavel, empresaId, relId, setLista, total }: { 
             </>
           ) : (
             <>
-              <span className="font-medium">{colab?.nome ?? <span className="text-tinta-fraca">Equipe</span>}</span>
+              <span className="font-medium">{colab?.nome ?? m.colaborador_nome ?? <span className="text-tinta-fraca">Equipe</span>}</span>
               <span>{m.funcao}</span>
               <span className="text-tinta-suave">{TIPO_MAO_OBRA[m.tipo]}{m.empresa_terceira ? ` · ${m.empresa_terceira}` : ''}</span>
               <span className="num text-right font-semibold">{m.quantidade}</span>
@@ -842,7 +844,7 @@ function SecaoMaoObra({ itens, editavel, empresaId, relId, setLista, total }: { 
         aoFechar={() => setModal(null)}
         aoCriar={(r) => {
           if (r.tipo === 'funcao') adicionar({ funcao: r.nome })
-          else adicionar({ colaborador_id: r.id, funcao: r.funcao || r.nome, tipo: r.vinculo, empresa_terceira: r.empresaTerceira })
+          else adicionar({ colaborador_id: r.id, colaborador_nome: r.nome, funcao: r.funcao, tipo: r.vinculo, empresa_terceira: r.empresaTerceira })
         }}
       />
     </Painel>

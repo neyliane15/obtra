@@ -64,7 +64,7 @@ export default function Relatorios() {
       setBaixando(null)
     }
   }
-  const aprovador = (r: RelatorioGlobal) => (r.aprovado_por ? (nomes.get(r.aprovado_por) ?? 'Administrador') : null)
+  const aprovador = (r: RelatorioGlobal) => (r.aprovado_por ? (r.aprovador?.nome ?? nomes.get(r.aprovado_por) ?? 'Administrador') : null)
 
   return (
     <>
@@ -116,7 +116,7 @@ export default function Relatorios() {
       ) : (
         <>
           <div className="cartao hidden overflow-hidden md:block">
-            <div className="rolagem-fina overflow-x-auto">
+            <div className="rolagem-fina relative overflow-x-auto">
               <table className="w-full min-w-[900px] text-left text-[12.5px]">
                 <thead>
                   <tr className="border-b border-linha bg-papel/80">

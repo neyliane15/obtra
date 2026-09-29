@@ -209,7 +209,7 @@ export function useEnvioFotos(destino: { empresaId?: string; obraId?: string; re
 export type RelatorioGlobal = Pick<
   Relatorio,
   'id' | 'obra_id' | 'empresa_id' | 'numero' | 'data' | 'status' | 'responsavel' | 'aprovado_por' | 'aprovado_em' | 'criado_por' | 'clima_manha' | 'clima_tarde' | 'atualizado_em'
-> & { obras: { nome: string } | null }
+> & { obras: { nome: string } | null; aprovador?: { nome: string } | null }
 
 export function useRelatoriosEmpresa() {
   const { empresaId } = useSessao()
@@ -218,7 +218,7 @@ export function useRelatoriosEmpresa() {
     queryFn: async () => {
       let q = supabase
         .from('relatorios')
-        .select('id, obra_id, empresa_id, numero, data, status, responsavel, aprovado_por, aprovado_em, criado_por, clima_manha, clima_tarde, atualizado_em, obras(nome)')
+        .select('id, obra_id, empresa_id, numero, data, status, responsavel, aprovado_por, aprovado_em, criado_por, clima_manha, clima_tarde, atualizado_em, obras(nome), aprovador:perfis!relatorios_aprovado_por_fkey(nome)')
         .order('data', { ascending: false })
         .order('numero', { ascending: false })
         .limit(2000)

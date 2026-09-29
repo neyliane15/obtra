@@ -82,7 +82,7 @@ export default function Empresas() {
         sobretitulo={<span className="text-ambar-700">Plataforma · master</span>}
         titulo="Empresas"
         subtitulo={`${lista.data?.length ?? 0} empresas · ${formatarBytes(totalUsado)} armazenados no total`}
-        acoes={<Botao icone={<Plus className="size-4" />} onClick={() => setEditando('nova')}>Nova empresa</Botao>}
+        acoes={<Botao variante="ambar" icone={<Plus className="size-4" />} onClick={() => setEditando('nova')}>Nova empresa</Botao>}
       />
       <label className="relative mb-4 block sm:w-80">
         <span className="sr-only">Buscar empresa</span>

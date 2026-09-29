@@ -1,5 +1,3 @@
-import { PDFDocument } from 'pdf-lib'
-
 export const LIMITE_PDF_BYTES = 15 * 1024 * 1024
 
 export function ehPdf(arquivo: File): boolean {
@@ -15,6 +13,7 @@ export async function compactarPdf(arquivo: File): Promise<Blob> {
   const original = new Uint8Array(await arquivo.arrayBuffer())
   let saida: Blob = new Blob([original], { type: 'application/pdf' })
   try {
+    const { PDFDocument } = await import('pdf-lib')
     const doc = await PDFDocument.load(original, { updateMetadata: false, ignoreEncryption: false })
     doc.setTitle('')
     doc.setAuthor('')

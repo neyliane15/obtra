@@ -1,75 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useState, type FormEvent } from 'react'
 import { format, startOfMonth } from 'date-fns'
 import { FileDown } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { hojeISO } from '@/lib/formato'
 import { Botao, CampoTexto, Interruptor, Modal, Progresso } from './ui'
 import { useAvisos } from './avisos'
-
-export function ModalNovoRelatorio({
-  aberto, aoFechar, obraId, temAnterior,
-}: {
-  aberto: boolean
-  aoFechar: () => void
-  obraId: string
-  temAnterior: boolean
-}) {
-  const avisos = useAvisos()
-  const qc = useQueryClient()
-  const navegar = useNavigate()
-  const [data, setData] = useState(hojeISO())
-  const [copiar, setCopiar] = useState(true)
-  const [salvando, setSalvando] = useState(false)
-  useEffect(() => {
-    if (aberto) {
-      setData(hojeISO())
-      setCopiar(temAnterior)
-    }
-  }, [aberto, temAnterior])
-
-  async function criar(e: FormEvent) {
-    e.preventDefault()
-    if (!data) return avisos.erro('Informe a data.')
-    setSalvando(true)
-    const { data: id, error } = await supabase.rpc('criar_relatorio', { p_obra: obraId, p_data: data, p_copiar_anterior: copiar })
-    setSalvando(false)
-    if (error) return avisos.erro(error)
-    void qc.invalidateQueries({ queryKey: ['relatorios', obraId] })
-    void qc.invalidateQueries({ queryKey: ['painel'] })
-    aoFechar()
-    navegar(`/relatorios/${id as string}`)
-  }
-
-  return (
-    <Modal
-      aberto={aberto}
-      aoFechar={aoFechar}
-      titulo="Novo relatório diário"
-      descricao="O número é atribuído automaticamente, em sequência."
-      codigo="RDO · ABERTURA"
-      largura="sm"
-      rodape={
-        <>
-          <Botao variante="secundario" onClick={aoFechar}>Cancelar</Botao>
-          <Botao type="submit" form="form-novo-rdo" carregando={salvando}>Criar relatório</Botao>
-        </>
-      }
-    >
-      <form id="form-novo-rdo" onSubmit={criar} className="flex flex-col gap-4">
-        <CampoTexto rotulo="Data do relatório" type="date" value={data} onChange={(e) => setData(e.target.value)} max="2100-12-31" obrigatorio />
-        <Interruptor
-          ligado={copiar}
-          aoMudar={setCopiar}
-          desabilitado={!temAnterior}
-          rotulo="Copiar do relatório anterior"
-          descricao={temAnterior ? 'Traz a mão de obra e os equipamentos do último RDO.' : 'Esta obra ainda não tem relatórios.'}
-        />
-      </form>
-    </Modal>
-  )
-}
 
 export function ModalPdfPeriodo({
   aberto, aoFechar, obraId, somenteAprovados: forcarAprovados,

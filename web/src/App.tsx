@@ -15,11 +15,14 @@ const Painel = lazy(() => import('./paginas/Painel'))
 const Obras = lazy(() => import('./paginas/Obras'))
 const ObraDetalhe = lazy(() => import('./paginas/ObraDetalhe'))
 const Relatorio = lazy(() => import('./paginas/Relatorio'))
-const Equipe = lazy(() => import('./paginas/Equipe'))
-const Clientes = lazy(() => import('./paginas/Clientes'))
+const Relatorios = lazy(() => import('./paginas/Relatorios'))
+const Historico = lazy(() => import('./paginas/Historico'))
+const Cadastros = lazy(() => import('./paginas/Cadastros'))
+const Exportacao = lazy(() => import('./paginas/Exportacao'))
+const Usuarios = lazy(() => import('./paginas/Usuarios'))
 const Configuracoes = lazy(() => import('./paginas/Configuracoes'))
 const Empresas = lazy(() => import('./paginas/master/Empresas'))
-const Usuarios = lazy(() => import('./paginas/master/Usuarios'))
+const TodosUsuarios = lazy(() => import('./paginas/master/Usuarios'))
 const PortalInicio = lazy(() => import('./paginas/portal/PortalInicio'))
 const PortalObra = lazy(() => import('./paginas/portal/PortalObra'))
 
@@ -104,13 +107,19 @@ export function App() {
           <Route path="/painel" element={<Painel />} />
           <Route path="/obras" element={<Obras />} />
           <Route path="/obras/:id" element={<ObraDetalhe />} />
+          <Route path="/relatorios" element={<Relatorios />} />
           <Route path="/relatorios/:id" element={<Relatorio />} />
-          <Route path="/equipe" element={<Protegida papeis={ehGestor}><Equipe /></Protegida>} />
-          <Route path="/clientes" element={<Protegida papeis={ehGestor}><Clientes /></Protegida>} />
+          <Route path="/historico" element={<Historico />} />
+          <Route path="/cadastros" element={<Navigate to="/cadastros/mao-de-obra" replace />} />
+          <Route path="/cadastros/:tipo" element={<Cadastros />} />
+          <Route path="/exportacao" element={<Exportacao />} />
+          <Route path="/usuarios" element={<Protegida papeis={ehGestor}><Usuarios /></Protegida>} />
+          <Route path="/equipe" element={<Navigate to="/usuarios" replace />} />
+          <Route path="/clientes" element={<Navigate to="/usuarios?aba=clientes" replace />} />
           <Route path="/empresa" element={<Protegida papeis={ehGestor}><Configuracoes /></Protegida>} />
           <Route path="/master" element={<Navigate to="/master/empresas" replace />} />
           <Route path="/master/empresas" element={<Protegida papeis={soMaster}><Empresas /></Protegida>} />
-          <Route path="/master/usuarios" element={<Protegida papeis={soMaster}><Usuarios /></Protegida>} />
+          <Route path="/master/usuarios" element={<Protegida papeis={soMaster}><TodosUsuarios /></Protegida>} />
         </Route>
 
         <Route element={<Protegida papeis={(p) => p === 'cliente'}><CascaPortal /></Protegida>}>

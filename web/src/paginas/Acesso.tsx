@@ -50,7 +50,7 @@ function ArteBlueprint() {
       <g fill="#9DB6E8" fillOpacity="0.8" fontFamily="JetBrains Mono, monospace" fontSize="9" letterSpacing="1.5">
         <text x="120" y="346">15,00 m</text>
         <text x="16" y="190" transform="rotate(-90 16 190)">28,40 m</text>
-        <text x="250" y="140">PAV. 04 · EM EXECUÇÃO</text>
+        <text x="248" y="174">PAV. 04 · EM EXECUÇÃO</text>
       </g>
       <circle cx="340" cy="123" r="16" stroke="#F29A2E" strokeOpacity="0.6" strokeDasharray="2 3" />
     </svg>

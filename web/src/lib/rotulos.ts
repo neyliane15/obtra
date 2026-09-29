@@ -55,6 +55,7 @@ export const ACAO_HISTORICO: Record<string, string> = {
   enviou_aprovacao: 'enviou para aprovação',
   aprovou: 'aprovou',
   reabriu: 'reabriu',
+  devolveu: 'devolveu para rascunho',
   enviou_foto: 'enviou foto',
   excluiu_foto: 'excluiu foto',
   enviou_documento: 'anexou documento',

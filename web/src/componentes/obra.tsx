@@ -115,7 +115,7 @@ export function LinhaRelatorio({ r, para }: { r: RelatorioLista; para: string })
         <p className="flex items-center gap-1.5 text-[13px] font-semibold text-tinta">
           <Calendar className="size-3.5 text-tinta-fraca" />
           <span className="num">{formatarData(r.data)}</span>
-          <span className="truncate font-normal text-tinta-fraca capitalize">· {diaDaSemana(r.data)}</span>
+          <span className="hidden truncate font-normal text-tinta-fraca capitalize sm:inline">· {diaDaSemana(r.data)}</span>
         </p>
         <div className="mt-1 flex items-center gap-2.5">
           <ClimaResumo manha={r.clima_manha} tarde={r.clima_tarde} noite={r.clima_noite} />

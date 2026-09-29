@@ -11,8 +11,9 @@ import { carregarRelatorio, type RelatorioCompleto } from './consultas'
 import { baixarBlob } from './armazenamento'
 import { paraJpegDataUrl } from './imagem'
 import { calcularPrazo } from './prazo'
-import { diaDaSemana, formatarData, formatarHora, numeroRelatorio, capitalizar } from './formato'
-import { CLIMA, CONDICAO, STATUS_ATIVIDADE, STATUS_RELATORIO, TIPO_MAO_OBRA, TIPO_MATERIAL, TIPO_OCORRENCIA } from './rotulos'
+import { diaDaSemana, formatarData, formatarHora, capitalizar, codigoRelatorio, formatarMoeda } from './formato'
+import { formatarDuracao, minutosTrabalhados } from './horario'
+import { CLIMA, CONDICAO, STATUS_ATIVIDADE, STATUS_RELATORIO, TIPO_MAO_OBRA, TIPO_OCORRENCIA } from './rotulos'
 import { format } from 'date-fns'
 
 type RGB = [number, number, number]
@@ -140,7 +141,7 @@ function cabecalho(c: Contexto, r: Relatorio): number {
   doc.text('RELATÓRIO DIÁRIO DE OBRA', bx + bw / 2, y0 + 2.8, { align: 'center', charSpace: 0.2 })
   doc.setTextColor(...MARINHO)
   doc.setFontSize(15)
-  doc.text(`Nº ${numeroRelatorio(r.numero)}`, bx + bw / 2, y0 + 11.5, { align: 'center' })
+  doc.text(codigoRelatorio(r.numero), bx + bw / 2, y0 + 11.5, { align: 'center' })
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(6.5)
   doc.setTextColor(...SUAVE)
@@ -182,85 +183,115 @@ async function desenharRelatorio(c: Contexto, dados: RelatorioCompleto, fotos: F
   const r = dados.relatorio
   let y = cabecalho(c, r)
 
-  // clima e horário
-  y = tituloSecao(c, y, 'Condições do dia', '01')
+  // horário
+  const minutos = minutosTrabalhados(r.horario_inicio, r.horario_fim, r.intervalo_inicio, r.intervalo_fim)
+  y = tituloSecao(c, y, 'Horário de trabalho', '01')
+  y = tabela(c, y, {
+    head: [['Responsável', 'Entrada', 'Saída', 'Intervalo', 'Horas trabalhadas']],
+    body: [[
+      r.responsavel ?? '—',
+      formatarHora(r.horario_inicio) || '—',
+      formatarHora(r.horario_fim) || '—',
+      r.intervalo_inicio && r.intervalo_fim ? `${formatarHora(r.intervalo_inicio)} às ${formatarHora(r.intervalo_fim)}` : '—',
+      { content: formatarDuracao(minutos), styles: { fontStyle: 'bold', textColor: MARINHO } },
+    ]],
+  })
+
+  // clima
+  y = tituloSecao(c, y, 'Condição climática', '02')
   const periodos = [
     ['Manhã', r.clima_manha, r.condicao_manha],
     ['Tarde', r.clima_tarde, r.condicao_tarde],
     ['Noite', r.clima_noite, r.condicao_noite],
   ] as const
+  const cond = (co: (typeof periodos)[number][2]) => ({
+    content: co ? CONDICAO[co] : '—',
+    styles: co === 'impraticavel' ? { textColor: [192, 52, 43] as RGB, fontStyle: 'bold' as const } : {},
+  })
   y = tabela(c, y, {
-    head: [['Período', 'Tempo', 'Condição', '', 'Jornada']],
+    head: [['', ...periodos.map((p) => p[0]), 'Pluviometria']],
     body: [
-      ...periodos.map(([p, cl, co], i) => [
-        p,
-        cl ? CLIMA[cl] : '—',
-        {
-          content: co ? CONDICAO[co] : '—',
-          styles: co === 'impraticavel' ? { textColor: [192, 52, 43] as RGB, fontStyle: 'bold' as const } : {},
-        },
-        '',
-        i === 0
-          ? `Início: ${formatarHora(r.horario_inicio) || '—'}`
-          : i === 1
-            ? `Término: ${formatarHora(r.horario_fim) || '—'}`
-            : `Pluviometria: ${r.pluviometria_mm !== null ? `${paraNumero(r.pluviometria_mm).toLocaleString('pt-BR')} mm` : '—'}`,
-      ]),
+      [{ content: 'CLIMA', styles: { fontStyle: 'bold', textColor: SUAVE, fontSize: 6.5 } }, ...periodos.map((p) => (p[1] ? CLIMA[p[1]] : '—')), { content: r.pluviometria_mm !== null ? `${paraNumero(r.pluviometria_mm).toLocaleString('pt-BR')} mm` : '—', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } }],
+      [{ content: 'CONDIÇÃO', styles: { fontStyle: 'bold', textColor: SUAVE, fontSize: 6.5 } }, ...periodos.map((p) => cond(p[2]))],
     ],
-    columnStyles: { 0: { cellWidth: 22, fontStyle: 'bold' }, 3: { cellWidth: 4, fillColor: [255, 255, 255], lineWidth: 0 } },
+    columnStyles: { 0: { cellWidth: 22 } },
   })
 
   // mão de obra
   const totalMO = dados.maoObra.reduce((s, m) => s + m.quantidade, 0)
-  y = tituloSecao(c, y, `Mão de obra · efetivo ${totalMO}`, '02')
+  y = tituloSecao(c, y, `Mão de obra · efetivo ${totalMO}`, '03')
   y = tabela(c, y, {
-    head: [['Função', 'Tipo', 'Empresa', 'Qtd.']],
-    body: vazioSe(dados.maoObra, (l) => l.map((m) => [m.funcao, TIPO_MAO_OBRA[m.tipo], m.empresa_terceira ?? (m.tipo === 'propria' ? 'Própria' : '—'), { content: String(m.quantidade), styles: { halign: 'right' } }]), 4),
+    head: [['Colaborador', 'Função', 'Vínculo', 'Qtd.']],
+    body: vazioSe(dados.maoObra, (l) => l.map((m) => [m.colaborador_nome || 'Equipe', m.funcao || '—', m.tipo === 'terceirizada' ? `Terceirizada${m.empresa_terceira ? ` · ${m.empresa_terceira}` : ''}` : TIPO_MAO_OBRA[m.tipo], { content: String(m.quantidade), styles: { halign: 'right' } }]), 4),
     foot: dados.maoObra.length ? [[{ content: 'Total', colSpan: 3, styles: { halign: 'right' } }, { content: String(totalMO), styles: { halign: 'right' } }]] : undefined,
     footStyles: { fillColor: FUNDO, textColor: MARINHO, fontStyle: 'bold' },
-    columnStyles: { 3: { cellWidth: 16 }, 1: { cellWidth: 28 } },
+    columnStyles: { 3: { cellWidth: 16 } },
   })
 
-  y = tituloSecao(c, y, 'Equipamentos', '03')
+  y = tituloSecao(c, y, 'Equipamentos', '04')
   y = tabela(c, y, {
     head: [['Equipamento', 'Qtd.']],
     body: vazioSe(dados.equipamentos, (l) => l.map((e) => [e.nome, { content: String(e.quantidade), styles: { halign: 'right' } }]), 2),
     columnStyles: { 1: { cellWidth: 16 } },
   })
 
-  y = tituloSecao(c, y, 'Atividades', '04')
+  y = tituloSecao(c, y, 'Atividades realizadas', '05')
   y = tabela(c, y, {
     head: [['Descrição', 'Situação', '%']],
     body: vazioSe(dados.atividades, (l) => l.map((a) => [a.descricao, STATUS_ATIVIDADE[a.status].rotulo, { content: `${a.progresso}%`, styles: { halign: 'right' } }]), 3),
     columnStyles: { 1: { cellWidth: 28 }, 2: { cellWidth: 16 } },
   })
 
-  y = tituloSecao(c, y, 'Ocorrências', '05')
+  y = tituloSecao(c, y, 'Ocorrências', '06')
   y = tabela(c, y, {
     head: [['Tipo', 'Descrição']],
     body: vazioSe(dados.ocorrencias, (l) => l.map((o) => [TIPO_OCORRENCIA[o.tipo], o.descricao]), 2),
     columnStyles: { 0: { cellWidth: 28 } },
   })
 
-  y = tituloSecao(c, y, 'Materiais', '06')
-  y = tabela(c, y, {
-    head: [['Movimento', 'Descrição', 'Quantidade']],
-    body: vazioSe(dados.materiais, (l) => l.map((m) => [TIPO_MATERIAL[m.tipo], m.descricao, m.quantidade ?? '—']), 3),
-    columnStyles: { 0: { cellWidth: 28 }, 2: { cellWidth: 32 } },
-  })
+  const qtd = (v: number | string | null) => (v === null || v === '' ? '—' : paraNumero(v).toLocaleString('pt-BR'))
+  const secMat = (tipo: 'recebido' | 'utilizado', titulo: string, cod: string) => {
+    const l = dados.materiais.filter((m) => m.tipo === tipo)
+    if (!l.length) return
+    y = tituloSecao(c, y, titulo, cod)
+    y = tabela(c, y, {
+      head: [['Material', 'Quantidade', 'Unidade']],
+      body: l.map((m) => [m.descricao, { content: qtd(m.quantidade), styles: { halign: 'right' } }, m.unidade ?? '']),
+      columnStyles: { 1: { cellWidth: 26 }, 2: { cellWidth: 22 } },
+    })
+  }
+  secMat('recebido', 'Materiais recebidos', '07')
+  secMat('utilizado', 'Materiais utilizados', '08')
+
+  if (dados.notas.length) {
+    const totalNotas = dados.notas.reduce((s, n) => s + paraNumero(n.valor), 0)
+    y = tituloSecao(c, y, 'Notas de compras', '09')
+    y = tabela(c, y, {
+      head: [['Fornecedor', 'Nº da nota', 'Descrição', 'Valor']],
+      body: dados.notas.map((n) => [n.fornecedor ?? '—', n.numero_nota ?? '—', n.descricao ?? '', { content: formatarMoeda(paraNumero(n.valor)), styles: { halign: 'right' } }]),
+      foot: [[{ content: 'Total', colSpan: 3, styles: { halign: 'right' } }, { content: formatarMoeda(totalNotas), styles: { halign: 'right' } }]],
+      footStyles: { fillColor: FUNDO, textColor: MARINHO, fontStyle: 'bold' },
+      columnStyles: { 1: { cellWidth: 26 }, 3: { cellWidth: 28 } },
+    })
+  }
 
   if (r.observacoes?.trim()) {
-    y = tituloSecao(c, y, 'Observações', '07')
+    y = tituloSecao(c, y, 'Observações', '10')
     y = tabela(c, y, { body: [[r.observacoes]], theme: 'plain', styles: { fontSize: 8.5, cellPadding: 2.5, lineColor: LINHA, lineWidth: 0.15 } })
   }
 
   // fotos
   if (opcoes.comFotos && fotos.length) {
-    y = tituloSecao(c, y, `Registro fotográfico · ${fotos.length}`, '08')
     const gap = 5
     const cw = (c.larg - 2 * M - gap) / 2
     const ch = cw * 0.72
     const legendaH = 9
+    // título não fica órfão: precisa caber ao menos uma linha de fotos
+    if (y + 8 + ch + legendaH > c.alt - 20) {
+      doc.addPage()
+      y = TOPO_CONTINUACAO + 4
+    }
+    y = tituloSecao(c, y, `Registro fotográfico · ${fotos.length}`, '11')
     let col = 0
     for (let i = 0; i < fotos.length; i++) {
       const f = fotos[i]!
@@ -407,9 +438,9 @@ export async function baixarPdfRelatorio(relatorioId: string, opcoes: { comFotos
   await desenharRelatorio(c, dados, fotos, { comFotos: opcoes.comFotos !== false })
   const titulos = new Map<number, string>()
   const total = c.doc.getNumberOfPages()
-  for (let p = 2; p <= total; p++) titulos.set(p, `${c.obra.nome} · RDO Nº ${numeroRelatorio(dados.relatorio.numero)} · ${formatarData(dados.relatorio.data)}`)
+  for (let p = 2; p <= total; p++) titulos.set(p, `${c.obra.nome} · ${codigoRelatorio(dados.relatorio.numero)} · ${formatarData(dados.relatorio.data)}`)
   finalizar(c, titulos)
-  c.doc.save(`RDO-${numeroRelatorio(dados.relatorio.numero)}-${nomeArquivo(c.obra.nome)}-${dados.relatorio.data}.pdf`)
+  c.doc.save(`${codigoRelatorio(dados.relatorio.numero)}-${nomeArquivo(c.obra.nome)}-${dados.relatorio.data}.pdf`)
 }
 
 /** Relatório do período: capa com resumo + cada RDO em sequência. */
@@ -481,7 +512,7 @@ export async function baixarPdfPeriodo(
   tabela(c, y, {
     head: [['Nº', 'Data', 'Dia', 'Manhã', 'Tarde', 'Efetivo', 'Atividades', 'Situação']],
     body: completos.map((d) => [
-      numeroRelatorio(d.relatorio.numero),
+      codigoRelatorio(d.relatorio.numero),
       formatarData(d.relatorio.data),
       capitalizar(diaDaSemana(d.relatorio.data)),
       d.relatorio.clima_manha ? CLIMA[d.relatorio.clima_manha] : '—',
@@ -500,7 +531,7 @@ export async function baixarPdfPeriodo(
     const fotos = opcoes.comFotos ? await fotosDoRelatorio(d.relatorio.id) : []
     await desenharRelatorio(c, d, fotos, { comFotos: !!opcoes.comFotos })
     const fim = doc.getNumberOfPages()
-    for (let p = inicio + 1; p <= fim; p++) titulos.set(p, `${c.obra.nome} · RDO Nº ${numeroRelatorio(d.relatorio.numero)} · ${formatarData(d.relatorio.data)}`)
+    for (let p = inicio + 1; p <= fim; p++) titulos.set(p, `${c.obra.nome} · ${codigoRelatorio(d.relatorio.numero)} · ${formatarData(d.relatorio.data)}`)
     opcoes.aoProgredir?.(i + 1, completos.length)
   }
   finalizar(c, titulos)

@@ -108,6 +108,7 @@ interface FilhoBase {
 
 export interface MaoObra extends FilhoBase {
   colaborador_id: string | null
+  colaborador_nome?: string | null
   funcao: string
   quantidade: number
   tipo: TipoMaoObra

@@ -347,7 +347,7 @@ export function Casca() {
         </div>
       )}
 
-      <main className="lg:pl-[248px]">
+      <main className="overflow-x-clip lg:pl-[248px]">
         <div className="mx-auto w-full max-w-[1280px] px-4 pt-5 pb-24 sm:px-6 lg:px-9 lg:pt-8 lg:pb-12">
           <Outlet />
         </div>

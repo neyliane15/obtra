@@ -8,7 +8,7 @@ export function permissoes(papel: Papel | null | undefined) {
   return {
     verPainel: ehEquipe(papel),
     criarObra: ehGestor(papel),
-    editarObra: ehGestor(papel),
+    editarObra: ehEquipe(papel),
     excluirObra: ehGestor(papel),
     criarRelatorio: ehEquipe(papel),
     enviarArquivos: ehEquipe(papel),
