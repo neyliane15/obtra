@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { format, startOfMonth } from 'date-fns'
 import { FileDown } from 'lucide-react'
 import { hojeISO } from '@/lib/formato'
-import { Botao, CampoTexto, Interruptor, Modal, Progresso } from './ui'
+import { Botao, CampoData, Interruptor, Modal, Progresso } from './ui'
 import { useAvisos } from './avisos'
 
 export function ModalPdfPeriodo({
@@ -57,8 +57,8 @@ export function ModalPdfPeriodo({
     >
       <form id="form-periodo" onSubmit={gerar} className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-3">
-          <CampoTexto rotulo="De" type="date" value={de} onChange={(e) => setDe(e.target.value)} />
-          <CampoTexto rotulo="Até" type="date" value={ate} onChange={(e) => setAte(e.target.value)} />
+          <CampoData rotulo="De" valor={de} aoMudar={setDe} />
+          <CampoData rotulo="Até" valor={ate} aoMudar={setAte} />
         </div>
         {!forcarAprovados && <Interruptor ligado={aprovados} aoMudar={setAprovados} rotulo="Somente aprovados" />}
         <Interruptor ligado={comFotos} aoMudar={setComFotos} rotulo="Incluir fotos" descricao="Deixa o arquivo maior e a geração mais lenta." />

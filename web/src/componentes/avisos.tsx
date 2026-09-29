@@ -66,7 +66,7 @@ export function ProvedorDeAvisos({ children }: { children: ReactNode }) {
     <Ctx.Provider value={api}>
       {children}
       {createPortal(
-        <div className="pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex flex-col items-center gap-2 px-4 sm:bottom-6 sm:items-end sm:px-6" aria-live="polite">
+        <div className="pointer-events-none fixed inset-x-0 top-[60px] z-[80] flex flex-col items-center gap-2 px-4 sm:top-5 sm:items-end sm:px-6 lg:top-6" aria-live="polite">
           {avisos.map((a) => (
             <div
               key={a.id}

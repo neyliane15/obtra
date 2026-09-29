@@ -135,11 +135,22 @@ export default function Obras() {
         <>
           <div className={clsx('cartao overflow-hidden', visao === 'tabela' ? 'hidden md:block' : 'hidden')}>
             <div className="rolagem-fina relative overflow-x-auto">
-              <table className="w-full min-w-[980px] text-left text-[12.5px]">
+              <table className="w-full min-w-[1000px] table-fixed text-left text-[12.5px]">
+                <colgroup>
+                  <col className="w-[22%]" />
+                  <col className="w-[17%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[68px]" />
+                  <col className="w-[86px]" />
+                  <col className="w-[80px]" />
+                  <col className="w-[128px]" />
+                  <col className="w-[76px]" />
+                </colgroup>
                 <thead>
                   <tr className="border-b border-linha bg-papel/80">
-                    {['Obra', 'Contratante', 'Local', 'Responsável', 'Prazo', 'Decorrido', 'A vencer', 'Status', ''].map((c, i) => (
-                      <th key={i} scope="col" className={clsx('rotulo px-4 py-2.5 !text-[9.5px] font-semibold', i >= 4 && i <= 6 && 'text-right')}>{c || <span className="sr-only">Ações</span>}</th>
+                    {['Obra', 'Contratante', 'Local', 'Responsável', 'Prazo', 'Decorrido', 'A vencer', 'Status', 'Ações'].map((c, i) => (
+                      <th key={c} scope="col" className={clsx('rotulo px-4 py-2.5 !text-[9.5px] font-semibold whitespace-nowrap', i >= 4 && i <= 6 && 'text-right', i === 8 && 'pr-5 text-right')}>{c}</th>
                     ))}
                   </tr>
                 </thead>
@@ -149,19 +160,19 @@ export default function Obras() {
                     const st = STATUS_OBRA[o.status]
                     return (
                       <tr key={o.id} onClick={() => navegar(`/obras/${o.id}`)} className="group cursor-pointer transition-colors hover:bg-marinho-50/50">
-                        <td className="max-w-[220px] px-4 py-3">
+                        <td className="px-4 py-3">
                           {mostrarEmpresa && o.empresas?.nome && <p className="truncate text-[10px] font-semibold tracking-wide text-ambar-700 uppercase">{o.empresas.nome}</p>}
                           <p className="font-semibold text-tinta group-hover:text-marinho-700">{o.nome}</p>
                           {o.codigo && <p className="font-mono text-[10.5px] text-tinta-fraca">{o.codigo}</p>}
                         </td>
-                        <td className="max-w-[200px] px-4 py-3 text-tinta-suave">{o.contratante ?? '—'}</td>
+                        <td className="px-4 py-3 text-tinta-suave"><span className="line-clamp-2" title={o.contratante ?? undefined}>{o.contratante ?? '—'}</span></td>
                         <td className="px-4 py-3 text-tinta-suave">{[o.cidade, o.uf].filter(Boolean).join(' - ') || '—'}</td>
                         <td className="px-4 py-3 text-tinta-suave">{o.responsavel_tecnico ?? '—'}</td>
                         <td className="num px-4 py-3 text-right font-mono text-[12px]">{pr.definido ? `${pr.total}d` : '—'}</td>
                         <td className="num px-4 py-3 text-right font-mono text-[12px]">{pr.definido ? `${pr.decorridos}d` : '—'}</td>
                         <td className={clsx('num px-4 py-3 text-right font-mono text-[12px]', pr.atrasado ? 'font-semibold text-perigo-600' : pr.definido && pr.restantes <= 15 ? 'text-ambar-700' : '')}>{pr.definido ? `${pr.restantes}d` : '—'}</td>
                         <td className="px-4 py-3"><Selo tom={st.tom}>{st.rotulo}</Selo></td>
-                        <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                        <td className="py-3 pr-3 pl-1" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-0.5">
                             {p.editarObra && <Botao variante="fantasma" tamanho="p" apenasIcone icone={<Pencil className="size-3.5" />} onClick={() => setEditando(o)} aria-label={`Editar ${o.nome}`} title="Editar" />}
                             {p.excluirObra && <Botao variante="fantasma" tamanho="p" apenasIcone icone={<Trash2 className="size-3.5" />} onClick={() => void excluir(o)} aria-label={`Excluir ${o.nome}`} title="Excluir" className="hover:!text-perigo-600" />}

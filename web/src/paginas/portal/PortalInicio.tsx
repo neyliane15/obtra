@@ -7,11 +7,13 @@ import { STATUS_OBRA } from '@/lib/rotulos'
 import { Erro, Esqueleto, Selo, Vazio } from '@/componentes/ui'
 import { ImagemAssinada } from '@/componentes/midia'
 import { PrazoObra } from '@/componentes/obra'
+import { useTitulo } from '@/lib/titulo'
 
 export default function PortalInicio() {
   const perfil = usePerfil()
   const { empresa } = useSessao()
   const obras = useObras()
+  useTitulo('Minhas obras')
   const primeiro = perfil.nome.split(' ')[0]
   return (
     <>

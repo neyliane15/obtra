@@ -107,6 +107,10 @@ VITE_SUPABASE_URL=http://127.0.0.1:$PORTA_PORTAO
 VITE_SUPABASE_ANON_KEY=$ANON_KEY
 ENV
 
+# Fotos e capas da demonstração, pelo mesmo caminho do app.
+SOCK="$SOCK" BANCO="$BANCO" node "$RAIZ/ferramentas/local/fotos-demo/carregar.mjs" \
+  || echo "aviso: as fotos da demo não foram carregadas (o resto está no ar)" >&2
+
 echo
 echo "no ar:"
 echo "  URL       http://127.0.0.1:$PORTA_PORTAO   (logs em $TMP)"

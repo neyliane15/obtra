@@ -10,7 +10,7 @@ import { formatarDuracao, minutosTrabalhados } from '@/lib/horario'
 import { CLIMA, CONDICAO, STATUS_RELATORIO, TIPO_MAO_OBRA, TIPO_MATERIAL } from '@/lib/rotulos'
 import type { Relatorio } from '@/tipos/banco'
 import { paraNumero } from '@/tipos/banco'
-import { Botao, CabecalhoPagina, Campo, CampoTexto, Interruptor, Progresso, Selecao } from '@/componentes/ui'
+import { Botao, CabecalhoPagina, Campo, CampoData, Interruptor, Progresso, Selecao } from '@/componentes/ui'
 import { useAvisos } from '@/componentes/avisos'
 
 type Linha = Relatorio & {
@@ -133,8 +133,8 @@ export default function Exportacao() {
               {(obras.data ?? []).map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
             </Selecao>
           </Campo>
-          <CampoTexto rotulo="De" type="date" value={de} onChange={(e) => setDe(e.target.value)} />
-          <CampoTexto rotulo="Até" type="date" value={ate} onChange={(e) => setAte(e.target.value)} />
+          <CampoData rotulo="De" valor={de} aoMudar={setDe} />
+          <CampoData rotulo="Até" valor={ate} aoMudar={setAte} />
           <div className="pb-1.5">
             <Interruptor ligado={aprovados} aoMudar={setAprovados} rotulo="Somente aprovados" />
           </div>

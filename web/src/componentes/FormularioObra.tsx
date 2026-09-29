@@ -8,7 +8,7 @@ import { useSessao } from '@/lib/sessao'
 import { enviarCapa, removerArquivos } from '@/lib/armazenamento'
 import { previsaoPorPrazo } from '@/lib/prazo'
 import { STATUS_OBRA, UFS } from '@/lib/rotulos'
-import { AreaTexto, Botao, Campo, CampoTexto, Modal, Selecao } from './ui'
+import { AreaTexto, Botao, Campo, CampoData, CampoTexto, Modal, Selecao } from './ui'
 import { ImagemAssinada } from './midia'
 import { useAvisos } from './avisos'
 
@@ -236,13 +236,12 @@ export function FormularioObra({
           </Selecao>
         </Campo>
         <div className="cota sm:col-span-6" aria-hidden />
-        <CampoTexto rotulo="Início" type="date" value={f.data_inicio} onChange={(e) => mudar('data_inicio', e.target.value)} className="sm:col-span-2" />
+        <CampoData rotulo="Início" valor={f.data_inicio} aoMudar={(v) => mudar('data_inicio', v)} className="sm:col-span-2" />
         <CampoTexto rotulo="Prazo (dias)" type="number" min={1} inputMode="numeric" value={f.prazo_dias} onChange={(e) => mudar('prazo_dias', e.target.value)} erro={erros.prazo_dias} className="sm:col-span-2" />
-        <CampoTexto
+        <CampoData
           rotulo="Previsão de término"
-          type="date"
-          value={f.previsao_termino}
-          onChange={(e) => mudar('previsao_termino', e.target.value)}
+          valor={f.previsao_termino}
+          aoMudar={(v) => mudar('previsao_termino', v)}
           className="sm:col-span-2"
           dica={!f.previsao_termino && previsaoSugerida ? `Calculada: ${previsaoSugerida.split('-').reverse().join('/')}` : undefined}
         />

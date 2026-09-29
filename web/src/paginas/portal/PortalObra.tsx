@@ -12,6 +12,7 @@ import { ClimaResumo, PrazoObra } from '@/componentes/obra'
 import { ListaDocumentos } from '@/componentes/documentos'
 import { ModalPdfPeriodo } from '@/componentes/modaisRelatorio'
 import { useAvisos } from '@/componentes/avisos'
+import { useTitulo } from '@/lib/titulo'
 
 type Aba = 'linha' | 'fotos' | 'documentos'
 
@@ -26,6 +27,7 @@ export default function PortalObra() {
   const avisos = useAvisos()
   const [periodo, setPeriodo] = useState(false)
   const [baixando, setBaixando] = useState<string | null>(null)
+  useTitulo(obra.data?.nome ?? 'Obra')
 
   if (obra.isLoading) return <CarregandoPagina />
   if (obra.isError) return <Erro mensagem={mensagemDeErro(obra.error)} />

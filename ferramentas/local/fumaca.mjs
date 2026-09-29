@@ -13,6 +13,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
+import pg from 'pg'
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const env = Object.fromEntries(
@@ -50,12 +51,61 @@ async function entrar(email, senha = SENHA) {
   return { sb, usuario: data.user, sessao: data.session }
 }
 
+/*
+ * A fumaça escreve no banco de demonstração (RDO, cadastro, foto, comentário,
+ * usuário). Tudo o que ela cria é anotado aqui e apagado no fim — inclusive as
+ * linhas de histórico —, para a demo continuar parecendo uma empresa real.
+ */
+const criados = { relatorios: [], funcoes: [], colaboradores: [], fotos: [], arquivos: [] }
+let historicoAntes = null
+const banco = () =>
+  new pg.Client({ host: process.env.SOCK ?? '/home/pg/sock', user: 'postgres', database: process.env.BANCO ?? 'obtra_app' })
+
+async function limpar(admin) {
+  const c = banco()
+  try {
+    await c.connect()
+    await c.query('delete from public.fotos where id = any($1::uuid[]) or path = any($2::text[])', [criados.fotos, criados.arquivos])
+    if (admin && criados.arquivos.length) await admin.sb.storage.from('obtra').remove(criados.arquivos)
+    await c.query('delete from public.relatorios where id = any($1::uuid[])', [criados.relatorios])
+    await c.query('delete from public.colaboradores where id = any($1::uuid[])', [criados.colaboradores])
+    await c.query('delete from public.funcoes where id = any($1::uuid[])', [criados.funcoes])
+    await c.query("delete from storage.objects where bucket_id = 'obtra' and name = any($1::text[])", [criados.arquivos])
+    if (historicoAntes !== null) await c.query('delete from public.historico where id > $1', [historicoAntes])
+    console.log('  limpeza: o que a fumaça criou foi apagado (banco e histórico)')
+  } catch (e) {
+    console.log(`  limpeza pelo banco não foi possível (${e.message}); rode ferramentas/local/subir.sh para recriar a demo`)
+  } finally {
+    await c.end().catch(() => {})
+  }
+}
+
 async function principal() {
   console.log(`fumaça em ${URL_API}`)
+  {
+    const c = banco()
+    try {
+      await c.connect()
+      historicoAntes = Number((await c.query('select coalesce(max(id), 0) as n from public.historico')).rows[0].n)
+    } catch {
+      historicoAntes = null
+    } finally {
+      await c.end().catch(() => {})
+    }
+  }
+  let admin = null
+  try {
+    admin = await entrar('admin@construtoraaurora.com.br')
+    await roteiro(admin)
+  } finally {
+    await limpar(admin)
+  }
+}
+
+async function roteiro(admin) {
 
   // ----------------------------------------------------------- logins ----
   const master = await entrar('master@obtra.app')
-  const admin = await entrar('admin@construtoraaurora.com.br')
   const eng = await entrar('engenheiro@construtoraaurora.com.br')
   const cliente = await entrar('cliente@exemplo.com')
   const beta = await entrar('admin@betaengenharia.com.br')
@@ -102,6 +152,7 @@ async function principal() {
   const { data: ultimo } = await eng.sb.from('relatorios').select('numero, responsavel, horario_inicio, intervalo_inicio').eq('obra_id', vista.id).order('data', { ascending: false }).order('numero', { ascending: false }).limit(1).single()
   const { data: novoRdo, error: eRdo } = await eng.sb.rpc('criar_relatorio', { p_obra: vista.id, p_data: new Date().toISOString().slice(0, 10) })
   conferir('engenheiro cria RDO via criar_relatorio', !eRdo && typeof novoRdo === 'string', eRdo)
+  if (novoRdo) criados.relatorios.push(novoRdo)
   const { data: rdo } = await eng.sb.from('relatorios').select('numero, status, relatorio_mao_obra(id)').eq('id', novoRdo).single()
   conferir('RDO novo tem o próximo número e copiou a mão de obra', rdo?.numero === ultimo.numero + 1 && rdo.relatorio_mao_obra.length > 0, rdo)
   {
@@ -113,12 +164,14 @@ async function principal() {
   {
     const { data: funcoes } = await eng.sb.from('funcoes').select('id, nome').order('nome')
     conferir('engenheiro lê as funções da Aurora', funcoes?.length >= 10 && funcoes.some((f) => f.nome === 'Pedreiro'), funcoes?.length)
-    const { data: fn, error: eF } = await eng.sb.from('funcoes').insert({ nome: `Gesseiro ${Date.now()}` }).select().single()
+    const { data: fn, error: eF } = await eng.sb.from('funcoes').insert({ nome: `Fumaça ${Date.now()}` }).select().single()
+    if (fn) criados.funcoes.push(fn.id)
     conferir('engenheiro cadastra função "na hora" (empresa preenchida sozinha)', !eF && fn?.empresa_id === aurora, eF ?? fn)
-    const { data: col, error: eC } = await eng.sb.from('colaboradores').insert({ nome: 'Cícero Gomes', funcao_id: fn.id }).select().single()
+    const { data: col, error: eC } = await eng.sb.from('colaboradores').insert({ nome: 'Colaborador da fumaça', funcao_id: fn.id }).select().single()
+    if (col) criados.colaboradores.push(col.id)
     conferir('engenheiro cadastra colaborador', !eC && !!col, eC)
     const { data: item, error: eI } = await eng.sb.from('relatorio_mao_obra').insert({ relatorio_id: novoRdo, colaborador_id: col.id, funcao: '', quantidade: 1 }).select().single()
-    conferir('linha de mão de obra pelo cadastro: função e nome vêm do cadastro', !eI && item?.funcao === fn.nome && item?.colaborador_nome === 'Cícero Gomes', eI ?? item)
+    conferir('linha de mão de obra pelo cadastro: função e nome vêm do cadastro', !eI && item?.funcao === fn.nome && item?.colaborador_nome === 'Colaborador da fumaça', eI ?? item)
     const { data: mat } = await eng.sb.from('materiais').select('id, unidade').eq('nome', 'Cimento CP-II 50 kg').single()
     const { data: im, error: eM } = await eng.sb.from('relatorio_materiais').insert({ relatorio_id: novoRdo, material_id: mat.id, descricao: '', quantidade: 12.5, tipo: 'recebido' }).select().single()
     conferir('material pelo cadastro: unidade herdada, quantidade numérica', !eM && im?.unidade === 'sc' && Number(im?.quantidade) === 12.5, eM ?? im)
@@ -146,6 +199,7 @@ async function principal() {
   const idFoto = randomUUID()
   const caminho = `${pasta}/${idFoto}.webp`
   const miniatura = `${pasta}/${idFoto}_t.webp`
+  criados.arquivos.push(caminho, miniatura)
   const blob = new Blob([WEBP], { type: 'image/webp' })
   {
     const { data, error } = await eng.sb.storage.from('obtra').upload(caminho, blob, { contentType: 'image/webp' })
@@ -202,6 +256,7 @@ async function principal() {
     const id2 = randomUUID()
     const p2 = `${pasta}/${id2}.webp`
     const t2 = `${pasta}/${id2}_t.webp`
+    criados.arquivos.push(p2, t2)
     await eng.sb.storage.from('obtra').upload(p2, blob)
     await eng.sb.storage.from('obtra').upload(t2, blob)
     const { error } = await eng.sb.from('fotos').insert({ obra_id: vista.id, empresa_id: vista.empresa_id, relatorio_id: novoRdo, path: p2, thumb_path: t2 })
@@ -298,6 +353,7 @@ async function principal() {
     )
     const erros = res.filter((r) => r.error).map((r) => r.error.message)
     const ids = res.map((r) => r.data).filter(Boolean)
+    criados.relatorios.push(...ids)
     const { data: novos } = await admin.sb.from('relatorios').select('numero').in('id', ids).order('numero')
     const nums = (novos ?? []).map((r) => r.numero)
     conferir(

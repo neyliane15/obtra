@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { clsx } from 'clsx'
 import { ChevronRight, ClipboardList, FileDown, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { useNomesPerfis, useObras, useRelatoriosEmpresa, type RelatorioGlobal } from '@/lib/consultas'
 import { usePerfil } from '@/lib/sessao'
@@ -120,8 +121,8 @@ export default function Relatorios() {
               <table className="w-full min-w-[900px] text-left text-[12.5px]">
                 <thead>
                   <tr className="border-b border-linha bg-papel/80">
-                    {['Nº', 'Obra', 'Data', 'Dia', 'Clima', 'Responsável', 'Status', 'Aprovado por', ''].map((c, i) => (
-                      <th key={i} scope="col" className="rotulo px-4 py-2.5 !text-[9.5px] font-semibold">{c || <span className="sr-only">Ações</span>}</th>
+                    {['Nº', 'Obra', 'Data', 'Dia', 'Clima', 'Responsável', 'Status', 'Aprovado por', 'Ações'].map((c) => (
+                      <th key={c} scope="col" className={clsx('rotulo px-4 py-2.5 !text-[9.5px] font-semibold whitespace-nowrap', c === 'Ações' && 'pr-5 text-right')}>{c}</th>
                     ))}
                   </tr>
                 </thead>

@@ -8,6 +8,7 @@ import { CampoSenha, validarNovaSenha } from '@/componentes/TrocarSenha'
 import { supabase, mensagemDeErro } from '@/lib/supabase'
 import { useSessao } from '@/lib/sessao'
 import { rotaInicial } from '@/lib/permissoes'
+import { useTitulo } from '@/lib/titulo'
 
 /* Desenho técnico do painel de entrada: fachada em linhas de prancha. */
 function ArteBlueprint() {
@@ -71,7 +72,7 @@ function Moldura({ children }: { children: ReactNode }) {
           <ArteBlueprint />
         </div>
         <div className="relative max-w-md">
-          <h2 className="font-display text-[26px] leading-tight font-extrabold text-white">
+          <h2 className="font-display text-[26px] leading-tight font-extrabold text-balance text-white">
             O canteiro inteiro, <span className="text-ambar-400">registrado dia a dia.</span>
           </h2>
           <p className="mt-3 text-[13px] text-marinho-200/80">
@@ -111,6 +112,7 @@ export function Entrar() {
   const [senha, setSenha] = useState('')
   const [erros, setErros] = useState<Partial<Record<'email' | 'senha' | 'geral', string>>>({})
   const [enviando, setEnviando] = useState(false)
+  useTitulo('Entrar')
 
   if (!carregando && sessao && perfil) return <Navigate to={rotaInicial(perfil.papel)} replace />
 
@@ -163,6 +165,7 @@ export function EsqueciSenha() {
   const [erro, setErro] = useState<string | null>(null)
   const [enviado, setEnviado] = useState(false)
   const [enviando, setEnviando] = useState(false)
+  useTitulo('Recuperar senha')
 
   async function enviar(e: FormEvent) {
     e.preventDefault()
@@ -220,6 +223,7 @@ export function RedefinirSenha() {
   const [conf, setConf] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
+  useTitulo('Nova senha')
 
   async function salvar(e: FormEvent) {
     e.preventDefault()

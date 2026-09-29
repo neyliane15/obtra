@@ -22,6 +22,7 @@ import { ListaDocumentos } from '@/componentes/documentos'
 import { ModalPdfPeriodo } from '@/componentes/modaisRelatorio'
 import { ModalNovoUsuario } from '@/componentes/usuarios'
 import { useAvisos } from '@/componentes/avisos'
+import { useTitulo } from '@/lib/titulo'
 
 type Aba = 'relatorios' | 'fotos' | 'documentos' | 'clientes' | 'info'
 
@@ -39,6 +40,7 @@ export default function ObraDetalhe() {
   const navegar = useNavigate()
   const novoRdo = () => navegar(`/relatorios/novo?obra=${id}`)
   const [periodo, setPeriodo] = useState(false)
+  useTitulo(obra.data?.nome ?? 'Obra')
 
   if (obra.isLoading) return <CarregandoPagina />
   if (obra.isError) return <Erro mensagem={mensagemDeErro(obra.error)} aoTentar={() => void obra.refetch()} />

@@ -75,6 +75,7 @@ export default function Painel() {
     <>
       <CabecalhoPagina
         sobretitulo={hoje}
+        tituloAba="Dashboard"
         titulo={`Olá, ${primeiro}`}
         subtitulo={ehMaster ? (empresa ? `Visão da empresa ${empresa.nome}` : 'Visão geral de todas as empresas da plataforma') : `Resumo das obras da ${empresa?.nome ?? 'empresa'}`}
         acoes={

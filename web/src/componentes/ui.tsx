@@ -1,12 +1,13 @@
 import {
-  forwardRef, useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode,
+  forwardRef, useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode,
   type SelectHTMLAttributes, type TextareaHTMLAttributes,
 } from 'react'
 import { createPortal } from 'react-dom'
 import { clsx } from 'clsx'
-import { Loader2, X } from 'lucide-react'
+import { CalendarDays, Clock, Loader2, X } from 'lucide-react'
 import type { Tom } from '@/lib/rotulos'
 import { iniciais } from '@/lib/formato'
+import { useTitulo } from '@/lib/titulo'
 
 /* ---------------------------------------------------------------- Botão -- */
 type VarianteBotao = 'primario' | 'secundario' | 'fantasma' | 'perigo' | 'ambar' | 'claro'
@@ -100,6 +101,232 @@ export const AreaTexto = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<
 ) {
   return <textarea ref={ref} className={clsx('campo', className)} {...p} />
 })
+
+/* ----------------------------------------------------- Data e hora -- */
+/*
+ * O <input type="date|time"> nativo mostra o formato do idioma do NAVEGADOR
+ * (mm/dd/aaaa, 07:00 PM…), não o da página. Estes campos mostram sempre
+ * dd/mm/aaaa e 24 h, aceitam digitação só com números e mantêm o seletor
+ * nativo de calendário no botão ao lado.
+ */
+function isoParaBr(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : ''
+}
+function brParaIso(br: string): string | null {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(br)
+  if (!m) return null
+  const [d, mes, a] = [Number(m[1]), Number(m[2]), Number(m[3])]
+  const data = new Date(a, mes - 1, d)
+  if (a < 1900 || data.getFullYear() !== a || data.getMonth() !== mes - 1 || data.getDate() !== d) return null
+  return `${m[3]}-${m[2]}-${m[1]}`
+}
+function mascaraData(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 8)
+  if (d.length <= 2) return d
+  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`
+  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`
+}
+
+interface PropsData {
+  valor: string
+  aoMudar: (iso: string) => void
+  id?: string
+  readOnly?: boolean
+  disabled?: boolean
+  invalido?: boolean
+  min?: string
+  max?: string
+  className?: string
+  'aria-label'?: string
+}
+
+export function EntradaData({ valor, aoMudar, id, readOnly, disabled, invalido, min, max, className, ...aria }: PropsData) {
+  const [texto, setTexto] = useState(() => isoParaBr(valor))
+  const [erro, setErro] = useState(false)
+  const nativo = useRef<HTMLInputElement>(null)
+  const focado = useRef(false)
+  useEffect(() => {
+    if (!focado.current) setTexto(isoParaBr(valor))
+  }, [valor])
+  const bloqueado = readOnly || disabled
+  return (
+    <div className={clsx('relative', className)}>
+      <input
+        id={id}
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="dd/mm/aaaa"
+        maxLength={10}
+        value={texto}
+        readOnly={readOnly}
+        disabled={disabled}
+        aria-invalid={invalido || erro || undefined}
+        aria-label={aria['aria-label']}
+        className="campo num pr-9"
+        onFocus={() => (focado.current = true)}
+        onChange={(e) => {
+          const t = mascaraData(e.target.value)
+          setTexto(t)
+          setErro(false)
+          if (!t) aoMudar('')
+          const iso = brParaIso(t)
+          if (iso) aoMudar(iso)
+        }}
+        onBlur={() => {
+          focado.current = false
+          if (!texto) return
+          const iso = brParaIso(texto)
+          if (!iso) {
+            setErro(true)
+            setTimeout(() => {
+              setErro(false)
+              setTexto(isoParaBr(valor))
+            }, 1200)
+          }
+        }}
+      />
+      <input
+        ref={nativo}
+        type="date"
+        tabIndex={-1}
+        aria-hidden
+        value={valor}
+        min={min}
+        max={max}
+        onChange={(e) => {
+          aoMudar(e.target.value)
+          setTexto(isoParaBr(e.target.value))
+        }}
+        className="pointer-events-none absolute right-0 bottom-0 h-px w-px opacity-0"
+      />
+      <button
+        type="button"
+        disabled={bloqueado}
+        onClick={() => {
+          const el = nativo.current as (HTMLInputElement & { showPicker?: () => void }) | null
+          try {
+            el?.showPicker?.()
+          } catch {
+            el?.click()
+          }
+        }}
+        className="absolute top-1/2 right-1.5 flex size-6 -translate-y-1/2 items-center justify-center rounded text-tinta-fraca hover:bg-marinho-50 hover:text-marinho-700 disabled:pointer-events-none disabled:opacity-60"
+        aria-label="Abrir calendário"
+        title="Abrir calendário"
+      >
+        <CalendarDays className="size-3.5" />
+      </button>
+    </div>
+  )
+}
+
+function mascaraHora(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 4)
+  return d.length <= 2 ? d : `${d.slice(0, 2)}:${d.slice(2)}`
+}
+/** "7" → "07:00", "730" → "07:30", "0715" → "07:15"; inválida → null. */
+export function completarHora(t: string): string | null {
+  const d = t.replace(/\D/g, '')
+  if (!d) return ''
+  let h: number, m: number
+  if (d.length <= 2) [h, m] = [Number(d), 0]
+  else if (d.length === 3) [h, m] = [Number(d.slice(0, 1)), Number(d.slice(1))]
+  else [h, m] = [Number(d.slice(0, 2)), Number(d.slice(2, 4))]
+  if (h > 23 || m > 59) return null
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+export function EntradaHora({
+  valor, aoMudar, id, readOnly, disabled, className, ...aria
+}: { valor: string; aoMudar: (hhmm: string) => void; id?: string; readOnly?: boolean; disabled?: boolean; className?: string; 'aria-label'?: string }) {
+  const [texto, setTexto] = useState(valor)
+  const [erro, setErro] = useState(false)
+  const focado = useRef(false)
+  useEffect(() => {
+    if (!focado.current) setTexto(valor)
+  }, [valor])
+  function passo(delta: number) {
+    const [h, m] = (completarHora(texto) || '00:00').split(':').map(Number)
+    const total = ((h! * 60 + m! + delta) % 1440 + 1440) % 1440
+    const novo = `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+    setTexto(novo)
+    aoMudar(novo)
+  }
+  return (
+    <div className={clsx('relative', className)}>
+      <input
+        id={id}
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="--:--"
+        maxLength={5}
+        value={texto}
+        readOnly={readOnly}
+        disabled={disabled}
+        aria-invalid={erro || undefined}
+        aria-label={aria['aria-label']}
+        title="Hora no formato 24 h (↑/↓ ajusta de 15 em 15 min)"
+        className="campo num pr-8 font-mono !text-[12.5px] tracking-wide"
+        onFocus={() => (focado.current = true)}
+        onKeyDown={(e) => {
+          if (readOnly || disabled) return
+          if (e.key === 'ArrowUp') { e.preventDefault(); passo(15) }
+          if (e.key === 'ArrowDown') { e.preventDefault(); passo(-15) }
+        }}
+        onChange={(e) => {
+          const t = mascaraHora(e.target.value)
+          setTexto(t)
+          setErro(false)
+          if (!t) aoMudar('')
+          else if (t.length === 5) {
+            const c = completarHora(t)
+            if (c) aoMudar(c)
+          }
+        }}
+        onBlur={() => {
+          focado.current = false
+          const c = completarHora(texto)
+          if (c === null) {
+            setErro(true)
+            setTimeout(() => {
+              setErro(false)
+              setTexto(valor)
+            }, 1200)
+          } else {
+            setTexto(c)
+            if (c !== valor) aoMudar(c)
+          }
+        }}
+      />
+      <Clock className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-tinta-fraca" aria-hidden />
+    </div>
+  )
+}
+
+export function CampoData({
+  rotulo, erro, dica, obrigatorio, className, ...p
+}: PropsData & { rotulo: string; erro?: string | null; dica?: ReactNode; obrigatorio?: boolean }) {
+  const id = useId()
+  return (
+    <Campo rotulo={rotulo} erro={erro} dica={dica} htmlFor={id} obrigatorio={obrigatorio} className={className}>
+      <EntradaData id={id} invalido={!!erro} {...p} />
+    </Campo>
+  )
+}
+
+export function CampoHora({
+  rotulo, className, ...p
+}: { rotulo: string; valor: string; aoMudar: (v: string) => void; readOnly?: boolean; className?: string }) {
+  const id = useId()
+  return (
+    <Campo rotulo={rotulo} htmlFor={id} className={className}>
+      <EntradaHora id={id} {...p} />
+    </Campo>
+  )
+}
 
 /** Campo com rótulo já ligado ao input. */
 export function CampoTexto({
@@ -214,14 +441,17 @@ export function Cartao({
 
 /* ---------------------------------------------------- Cabeçalho página -- */
 export function CabecalhoPagina({
-  titulo, subtitulo, acoes, sobretitulo, voltar,
+  titulo, subtitulo, acoes, sobretitulo, voltar, tituloAba,
 }: {
   titulo: ReactNode
   subtitulo?: ReactNode
   acoes?: ReactNode
   sobretitulo?: ReactNode
   voltar?: ReactNode
+  /** título da aba do navegador (padrão: o título, se for texto) */
+  tituloAba?: string
 }) {
+  useTitulo(tituloAba ?? (typeof titulo === 'string' ? titulo : undefined))
   return (
     <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between anim-subir">
       <div className="min-w-0">
@@ -391,17 +621,26 @@ export function Modal({
 }) {
   const caixa = useRef<HTMLDivElement>(null)
   const idTitulo = useId()
+  // o pai costuma passar uma função nova a cada render: guardada numa ref, ela
+  // não reabre o efeito (que devolveria o foco ao 1º campo a cada tecla)
+  const fechar = useRef(aoFechar)
+  fechar.current = aoFechar
   useEffect(() => {
     if (!aberto) return
     const anterior = document.activeElement as HTMLElement | null
     const tecla = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') aoFechar()
+      if (e.key === 'Escape') fechar.current()
     }
     document.addEventListener('keydown', tecla)
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     setTimeout(() => {
-      const foco = caixa.current?.querySelector<HTMLElement>('[autofocus], input:not([type=hidden]), select, textarea, button')
+      const c = caixa.current
+      if (!c || c.contains(document.activeElement)) return // autoFocus já agiu
+      const foco =
+        c.querySelector<HTMLElement>('[data-corpo] :is(input:not([type=hidden]):not([readonly]), select, textarea)') ??
+        c.querySelector<HTMLElement>('footer button:first-child') ??
+        c.querySelector<HTMLElement>('button')
       foco?.focus()
     }, 20)
     return () => {
@@ -409,7 +648,7 @@ export function Modal({
       document.body.style.overflow = overflow
       anterior?.focus?.()
     }
-  }, [aberto, aoFechar])
+  }, [aberto])
   if (!aberto) return null
   const larg = { sm: 'sm:max-w-sm', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl', xl: 'sm:max-w-4xl' }[largura]
   return createPortal(
@@ -434,7 +673,7 @@ export function Modal({
           </div>
           <Botao variante="fantasma" apenasIcone tamanho="p" onClick={aoFechar} aria-label="Fechar" icone={<X className="size-4" />} />
         </header>
-        <div className="rolagem-fina flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div data-corpo className="rolagem-fina flex-1 overflow-y-auto px-5 py-4">{children}</div>
         {rodape && (
           <footer className="pb-seguro flex flex-wrap items-center justify-end gap-2 border-t border-linha bg-papel/60 px-5 py-3 sm:rounded-b-xl">
             {rodape}

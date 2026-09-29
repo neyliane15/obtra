@@ -28,9 +28,10 @@ import {
 import {
   CLIMA, CONDICAO, PAPEL, STATUS_ATIVIDADE, STATUS_RELATORIO, TIPO_MAO_OBRA, TIPO_OCORRENCIA, UNIDADES,
 } from '@/lib/rotulos'
-import { AreaTexto, Avatar, Botao, CampoTexto, CarregandoPagina, Entrada, Erro, Modal, Selecao, Selo, Vazio, Campo } from '@/componentes/ui'
+import { AreaTexto, Avatar, Botao, CampoHora, CampoTexto, EntradaData, CarregandoPagina, Entrada, Erro, Modal, Selecao, Selo, Vazio, Campo } from '@/componentes/ui'
 import { EnvioDeFotos, Galeria } from '@/componentes/midia'
 import { useAvisos } from '@/componentes/avisos'
+import { useTitulo } from '@/lib/titulo'
 
 const novoId = () => crypto.randomUUID()
 
@@ -38,6 +39,7 @@ const novoId = () => crypto.randomUUID()
 export default function PaginaRelatorio() {
   const { id } = useParams()
   const q = useRelatorio(id === 'novo' ? undefined : id)
+  useTitulo(id === 'novo' ? 'Novo RDO' : q.data ? `RD-${q.data.relatorio.numero}` : 'Relatório')
   if (id === 'novo') return <EditorRelatorio key="novo" dados={null} />
   if (q.isLoading) return <CarregandoPagina texto="Abrindo relatório…" />
   if (q.isError) return <Erro mensagem={mensagemDeErro(q.error)} aoTentar={() => void q.refetch()} />
@@ -390,7 +392,7 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
               )}
             </Campo>
             <Campo rotulo="Data" htmlFor="rdo-data">
-              <Entrada id="rdo-data" type="date" value={e.cab.data} onChange={(ev) => setCab('data', ev.target.value)} readOnly={!editavel} />
+              <EntradaData id="rdo-data" valor={e.cab.data} aoMudar={(v) => v && setCab('data', v)} readOnly={!editavel} />
             </Campo>
             <Campo rotulo="Dia da semana">
               <Entrada readOnly value={capitalizar(diaDaSemana(e.cab.data))} tabIndex={-1} />
@@ -419,10 +421,10 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
         {/* 03 horário */}
         <Painel n="03" titulo="Horário de Trabalho" icone={<Clock />}>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            <CampoTexto rotulo="Entrada" type="time" value={e.cab.horario_inicio} onChange={(ev) => setCab('horario_inicio', ev.target.value)} readOnly={!editavel} />
-            <CampoTexto rotulo="Saída" type="time" value={e.cab.horario_fim} onChange={(ev) => setCab('horario_fim', ev.target.value)} readOnly={!editavel} />
-            <CampoTexto rotulo="Intervalo início" type="time" value={e.cab.intervalo_inicio} onChange={(ev) => setCab('intervalo_inicio', ev.target.value)} readOnly={!editavel} />
-            <CampoTexto rotulo="Intervalo fim" type="time" value={e.cab.intervalo_fim} onChange={(ev) => setCab('intervalo_fim', ev.target.value)} readOnly={!editavel} />
+            <CampoHora rotulo="Entrada" valor={e.cab.horario_inicio} aoMudar={(v) => setCab('horario_inicio', v)} readOnly={!editavel} />
+            <CampoHora rotulo="Saída" valor={e.cab.horario_fim} aoMudar={(v) => setCab('horario_fim', v)} readOnly={!editavel} />
+            <CampoHora rotulo="Intervalo início" valor={e.cab.intervalo_inicio} aoMudar={(v) => setCab('intervalo_inicio', v)} readOnly={!editavel} />
+            <CampoHora rotulo="Intervalo fim" valor={e.cab.intervalo_fim} aoMudar={(v) => setCab('intervalo_fim', v)} readOnly={!editavel} />
             <Campo rotulo="Horas trabalhadas">
               <div className="num flex h-[34px] items-center justify-center rounded-md border border-ambar-400/50 bg-ambar-50 font-mono text-[14px] font-semibold text-marinho-900">{formatarDuracao(minutos)}</div>
             </Campo>
