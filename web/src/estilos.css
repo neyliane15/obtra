@@ -1,0 +1,334 @@
+/* ===========================================================================
+   Obtra · folha de estilos
+   ---------------------------------------------------------------------------
+   Direção: "prancha técnica". Azul-marinho de marca, fundo claro de papel,
+   bordas finas de 1px, cantoneiras de corte nas peças importantes, linhas
+   pontilhadas de cota e um grid milimetrado discreto nas áreas de destaque.
+   Âmbar de canteiro é sinal, não enfeite: aparece em status e detalhes.
+   =========================================================================== */
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  /* escala tipográfica pequena e refinada (base 13px) */
+  --text-2xs: 10px;
+  --text-2xs--line-height: 14px;
+  --text-xs: 11px;
+  --text-xs--line-height: 16px;
+  --text-sm: 12px;
+  --text-sm--line-height: 18px;
+  --text-base: 13px;
+  --text-base--line-height: 20px;
+  --text-md: 14px;
+  --text-md--line-height: 21px;
+  --text-lg: 16px;
+  --text-lg--line-height: 23px;
+  --text-xl: 19px;
+  --text-xl--line-height: 26px;
+  --text-2xl: 23px;
+  --text-2xl--line-height: 30px;
+  --text-3xl: 29px;
+  --text-3xl--line-height: 36px;
+  --text-4xl: 38px;
+  --text-4xl--line-height: 44px;
+
+  /* marca */
+  --color-marinho-950: #06122A;
+  --color-marinho-900: #0B1F3A;
+  --color-marinho-800: #10294D;
+  --color-marinho-700: #173766;
+  --color-marinho-600: #1E3A8A;
+  --color-marinho-500: #2B55B8;
+  --color-marinho-400: #5B82D6;
+  --color-marinho-300: #9DB6E8;
+  --color-marinho-200: #C9D7F2;
+  --color-marinho-100: #E4ECFA;
+  --color-marinho-50: #F1F5FD;
+
+  /* acento de canteiro */
+  --color-ambar-700: #A85A08;
+  --color-ambar-600: #C96F0E;
+  --color-ambar-500: #F29A2E;
+  --color-ambar-400: #F6B462;
+  --color-ambar-100: #FDEBD3;
+  --color-ambar-50: #FFF7EC;
+
+  /* papel e tinta */
+  --color-papel: #F5F7FB;
+  --color-superficie: #FFFFFF;
+  --color-linha: #E1E7F0;
+  --color-linha-forte: #C8D2E1;
+  --color-tinta: #0F1B2D;
+  --color-tinta-suave: #4A5A72;
+  --color-tinta-fraca: #7A889D;
+
+  /* estados */
+  --color-ok-600: #13795B;
+  --color-ok-50: #E8F6F0;
+  --color-perigo-600: #C0342B;
+  --color-perigo-50: #FDECEA;
+  --color-aviso-600: #B7791F;
+  --color-aviso-50: #FFF6E5;
+
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 11px;
+  --radius-xl: 14px;
+
+  --shadow-suave: 0 1px 2px rgb(11 31 58 / 0.04), 0 2px 8px -2px rgb(11 31 58 / 0.06);
+  --shadow-cartao: 0 1px 0 rgb(11 31 58 / 0.03), 0 8px 24px -12px rgb(11 31 58 / 0.18);
+  --shadow-flutuante: 0 12px 40px -12px rgb(6 18 42 / 0.35), 0 2px 6px rgb(6 18 42 / 0.08);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--color-papel);
+    color: var(--color-tinta);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 20px;
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+  ::selection {
+    background: var(--color-marinho-200);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-marinho-500);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  button, [role='button'] {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+  /* em aparelho de toque, campo com menos de 16px faz o iOS dar zoom */
+  @media (pointer: coarse) {
+    input, select, textarea {
+      font-size: 16px !important;
+    }
+  }
+}
+
+@layer components {
+  /* rótulo técnico: 11px, caixa-alta, espaçado */
+  .rotulo {
+    font-size: 10.5px;
+    line-height: 14px;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--color-tinta-fraca);
+  }
+
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+
+  /* grid milimetrado (prancha) — claro, para áreas de destaque */
+  .milimetrado {
+    background-color: var(--color-papel);
+    background-image:
+      linear-gradient(rgb(30 58 138 / 0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(30 58 138 / 0.07) 1px, transparent 1px),
+      linear-gradient(rgb(30 58 138 / 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(30 58 138 / 0.035) 1px, transparent 1px);
+    background-size: 60px 60px, 60px 60px, 12px 12px, 12px 12px;
+    background-position: -1px -1px;
+  }
+
+  /* blueprint escuro */
+  .blueprint {
+    background-color: var(--color-marinho-900);
+    background-image:
+      radial-gradient(ellipse at 20% 0%, rgb(43 85 184 / 0.35), transparent 55%),
+      linear-gradient(rgb(157 182 232 / 0.12) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(157 182 232 / 0.12) 1px, transparent 1px),
+      linear-gradient(rgb(157 182 232 / 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(157 182 232 / 0.05) 1px, transparent 1px);
+    background-size: 100% 100%, 80px 80px, 80px 80px, 16px 16px, 16px 16px;
+    background-position: 0 0, -1px -1px, -1px -1px, -1px -1px, -1px -1px;
+  }
+
+  /* marcas de corte nos quatro cantos, por fora da peça */
+  .cantoneiras {
+    position: relative;
+  }
+  .cantoneiras::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    pointer-events: none;
+    --c: var(--cor-cantoneira, var(--color-marinho-300));
+    --t: 11px;
+    background:
+      linear-gradient(var(--c), var(--c)) top left / var(--t) 1px no-repeat,
+      linear-gradient(var(--c), var(--c)) top left / 1px var(--t) no-repeat,
+      linear-gradient(var(--c), var(--c)) top right / var(--t) 1px no-repeat,
+      linear-gradient(var(--c), var(--c)) top right / 1px var(--t) no-repeat,
+      linear-gradient(var(--c), var(--c)) bottom left / var(--t) 1px no-repeat,
+      linear-gradient(var(--c), var(--c)) bottom left / 1px var(--t) no-repeat,
+      linear-gradient(var(--c), var(--c)) bottom right / var(--t) 1px no-repeat,
+      linear-gradient(var(--c), var(--c)) bottom right / 1px var(--t) no-repeat;
+  }
+
+  /* cantoneiras internas (dentro da borda) — para cartões compactos */
+  .quinas {
+    --c: var(--cor-cantoneira, var(--color-marinho-600));
+    --t: 8px;
+    background-image:
+      linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)),
+      linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c));
+    background-repeat: no-repeat;
+    background-size: var(--t) 1.5px, 1.5px var(--t), var(--t) 1.5px, 1.5px var(--t);
+    background-position: top left, top left, bottom right, bottom right;
+  }
+
+  /* linha de cota: régua pontilhada com terminais */
+  .cota {
+    position: relative;
+    height: 9px;
+    border: 0;
+  }
+  .cota::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 4px;
+    border-top: 1px dashed var(--color-linha-forte);
+  }
+  .cota::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(var(--color-linha-forte), var(--color-linha-forte)) left center / 1px 9px no-repeat,
+      linear-gradient(var(--color-linha-forte), var(--color-linha-forte)) right center / 1px 9px no-repeat;
+  }
+
+  .pontilhado-b {
+    border-bottom: 1px dashed var(--color-linha-forte);
+  }
+  .pontilhado-t {
+    border-top: 1px dashed var(--color-linha-forte);
+  }
+
+  /* cartão padrão */
+  .cartao {
+    background: var(--color-superficie);
+    border: 1px solid var(--color-linha);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-suave);
+  }
+
+  /* campo */
+  .campo {
+    width: 100%;
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--color-linha-forte);
+    border-radius: var(--radius-md);
+    background: var(--color-superficie);
+    color: var(--color-tinta);
+    font-size: 13px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  textarea.campo {
+    height: auto;
+    min-height: 72px;
+    padding: 8px 10px;
+    line-height: 19px;
+    resize: vertical;
+  }
+  select.campo {
+    appearance: none;
+    padding-right: 28px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%234A5A72' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+  }
+  .campo::placeholder {
+    color: var(--color-tinta-fraca);
+  }
+  .campo:hover {
+    border-color: var(--color-marinho-300);
+  }
+  .campo:focus {
+    outline: none;
+    border-color: var(--color-marinho-500);
+    box-shadow: 0 0 0 3px rgb(43 85 184 / 0.14);
+  }
+  .campo:disabled,
+  .campo[readonly] {
+    background: var(--color-papel);
+    color: var(--color-tinta-suave);
+  }
+  .campo[aria-invalid='true'] {
+    border-color: var(--color-perigo-600);
+    box-shadow: 0 0 0 3px rgb(192 52 43 / 0.1);
+  }
+
+  /* barra de rolagem fina */
+  .rolagem-fina {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-linha-forte) transparent;
+  }
+
+  /* esqueleto */
+  .esqueleto {
+    background: linear-gradient(90deg, #e9eef6 0%, #f4f7fb 40%, #e9eef6 80%);
+    background-size: 200% 100%;
+    animation: brilho 1.3s ease-in-out infinite;
+    border-radius: var(--radius-md);
+  }
+
+  /* "folha" do RDO */
+  .folha {
+    background: var(--color-superficie);
+    border: 1px solid var(--color-linha-forte);
+    border-radius: 4px;
+    box-shadow: var(--shadow-cartao);
+  }
+}
+
+@keyframes brilho {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+@keyframes subir {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes aparecer {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes girar {
+  to { transform: rotate(360deg); }
+}
+.anim-subir { animation: subir 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.anim-aparecer { animation: aparecer 0.2s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.pb-seguro { padding-bottom: env(safe-area-inset-bottom); }
