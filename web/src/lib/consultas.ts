@@ -4,7 +4,8 @@ import { supabase, exigir } from './supabase'
 import { useSessao } from './sessao'
 import { enviarFoto } from './armazenamento'
 import type {
-  Atividade, Comentario, Documento, Empresa, Equipamento, Foto, MaoObra, Material, Obra, Ocorrencia, PainelResumo, Perfil, Relatorio,
+  Atividade, Colaborador, Comentario, Documento, Empresa, Equipamento, EquipamentoCadastro, Foto, Funcao, MaoObra, Material,
+  MaterialCadastro, NotaCompra, Obra, Ocorrencia, PainelResumo, Perfil, Relatorio,
 } from '@/tipos/banco'
 import type { ProgressoEnvio } from '@/componentes/midia'
 
@@ -65,16 +66,18 @@ export interface RelatorioCompleto {
   atividades: Atividade[]
   ocorrencias: Ocorrencia[]
   materiais: Material[]
+  notas: NotaCompra[]
 }
 
 export async function carregarRelatorio(id: string): Promise<RelatorioCompleto | null> {
-  const [r, mo, eq, at, oc, ma] = await Promise.all([
+  const [r, mo, eq, at, oc, ma, nc] = await Promise.all([
     supabase.from('relatorios').select('*').eq('id', id).maybeSingle(),
     supabase.from('relatorio_mao_obra').select('*').eq('relatorio_id', id).order('ordem'),
     supabase.from('relatorio_equipamentos').select('*').eq('relatorio_id', id).order('ordem'),
     supabase.from('relatorio_atividades').select('*').eq('relatorio_id', id).order('ordem'),
     supabase.from('relatorio_ocorrencias').select('*').eq('relatorio_id', id).order('ordem'),
     supabase.from('relatorio_materiais').select('*').eq('relatorio_id', id).order('ordem'),
+    supabase.from('relatorio_notas_compras').select('*').eq('relatorio_id', id).order('ordem'),
   ])
   const relatorio = exigir(r) as Relatorio | null
   if (!relatorio) return null
@@ -85,6 +88,8 @@ export async function carregarRelatorio(id: string): Promise<RelatorioCompleto |
     atividades: exigir(at) as Atividade[],
     ocorrencias: exigir(oc) as Ocorrencia[],
     materiais: exigir(ma) as Material[],
+    // tabela do adendo 1: se o banco ainda não a tiver, segue sem notas
+    notas: nc.error ? [] : ((nc.data ?? []) as NotaCompra[]),
   }
 }
 
@@ -198,4 +203,58 @@ export function useEnvioFotos(destino: { empresaId?: string; obraId?: string; re
     [destino.empresaId, destino.obraId, destino.relatorioId, qc, aoErro],
   )
   return { enviar, progresso }
+}
+
+/* --------------------------------------------------- lista global RDO -- */
+export type RelatorioGlobal = Pick<
+  Relatorio,
+  'id' | 'obra_id' | 'empresa_id' | 'numero' | 'data' | 'status' | 'responsavel' | 'aprovado_por' | 'aprovado_em' | 'criado_por' | 'clima_manha' | 'clima_tarde' | 'atualizado_em'
+> & { obras: { nome: string } | null }
+
+export function useRelatoriosEmpresa() {
+  const { empresaId } = useSessao()
+  return useQuery({
+    queryKey: ['relatorios-empresa', empresaId],
+    queryFn: async () => {
+      let q = supabase
+        .from('relatorios')
+        .select('id, obra_id, empresa_id, numero, data, status, responsavel, aprovado_por, aprovado_em, criado_por, clima_manha, clima_tarde, atualizado_em, obras(nome)')
+        .order('data', { ascending: false })
+        .order('numero', { ascending: false })
+        .limit(2000)
+      if (empresaId) q = q.eq('empresa_id', empresaId)
+      return exigir(await q) as unknown as RelatorioGlobal[]
+    },
+  })
+}
+
+/** Nomes de perfis por id, no escopo que o usuário enxerga. */
+export function useNomesPerfis() {
+  const { empresaId, ehMaster } = useSessao()
+  const q = usePerfis(empresaId, { todos: ehMaster })
+  const mapa = new Map<string, string>()
+  for (const p of q.data ?? []) mapa.set(p.id, p.nome)
+  return mapa
+}
+
+/* ------------------------------------------------------- cadastros -- */
+export type TabelaCadastro = 'funcoes' | 'colaboradores' | 'materiais' | 'equipamentos'
+export interface MapaCadastros {
+  funcoes: Funcao
+  colaboradores: Colaborador
+  materiais: MaterialCadastro
+  equipamentos: EquipamentoCadastro
+}
+
+export function useCadastro<T extends TabelaCadastro>(tabela: T, empresaIdForcada?: string | null) {
+  const { empresaId } = useSessao()
+  const emp = empresaIdForcada ?? empresaId
+  return useQuery({
+    queryKey: ['cadastro', tabela, emp],
+    queryFn: async () => {
+      let q = supabase.from(tabela).select('*').order('nome')
+      if (emp) q = q.eq('empresa_id', emp)
+      return exigir(await q) as MapaCadastros[T][]
+    },
+  })
 }

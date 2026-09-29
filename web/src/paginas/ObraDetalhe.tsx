@@ -9,7 +9,8 @@ import { useDocumentos, useFotosObra, useObra, usePerfis, useRelatorios, useVinc
 import { usePerfil } from '@/lib/sessao'
 import { permissoes } from '@/lib/permissoes'
 import { supabase, exigir, mensagemDeErro } from '@/lib/supabase'
-import { excluirFoto, removerPasta } from '@/lib/armazenamento'
+import { excluirFoto } from '@/lib/armazenamento'
+import { excluirObraCompleta } from '@/lib/acoes'
 import { formatarData } from '@/lib/formato'
 import { STATUS_OBRA, STATUS_RELATORIO } from '@/lib/rotulos'
 import type { Foto, StatusRelatorio } from '@/tipos/banco'
@@ -18,7 +19,7 @@ import { ImagemAssinada, Galeria, EnvioDeFotos } from '@/componentes/midia'
 import { LinhaRelatorio, PrazoObra } from '@/componentes/obra'
 import { FormularioObra } from '@/componentes/FormularioObra'
 import { ListaDocumentos } from '@/componentes/documentos'
-import { ModalNovoRelatorio, ModalPdfPeriodo } from '@/componentes/modaisRelatorio'
+import { ModalPdfPeriodo } from '@/componentes/modaisRelatorio'
 import { ModalNovoUsuario } from '@/componentes/usuarios'
 import { useAvisos } from '@/componentes/avisos'
 
@@ -35,7 +36,8 @@ export default function ObraDetalhe() {
   const fotos = useFotosObra(id)
   const docs = useDocumentos(id)
   const [editar, setEditar] = useState(false)
-  const [novoRdo, setNovoRdo] = useState(false)
+  const navegar = useNavigate()
+  const novoRdo = () => navegar(`/relatorios/novo?obra=${id}`)
   const [periodo, setPeriodo] = useState(false)
 
   if (obra.isLoading) return <CarregandoPagina />
@@ -91,7 +93,7 @@ export default function ObraDetalhe() {
               <div className="flex flex-wrap gap-2">
                 {p.editarObra && <Botao variante="secundario" icone={<Pencil className="size-3.5" />} onClick={() => setEditar(true)}>Editar</Botao>}
                 <Botao variante="secundario" icone={<FileDown className="size-3.5" />} onClick={() => setPeriodo(true)}>PDF do período</Botao>
-                {p.criarRelatorio && <Botao icone={<Plus className="size-4" />} onClick={() => setNovoRdo(true)}>Novo relatório</Botao>}
+                {p.criarRelatorio && <Botao icone={<Plus className="size-4" />} onClick={novoRdo}>Novo RDO</Botao>}
               </div>
             </div>
             <div className="grid gap-4 border-t border-dashed border-linha-forte pt-4 sm:grid-cols-[1.4fr_1fr_1fr_1fr]">
@@ -110,7 +112,7 @@ export default function ObraDetalhe() {
       <Abas abas={abas} atual={aba} aoMudar={(a) => setParams({ aba: a }, { replace: true })} className="mb-5" />
 
       <div className="anim-aparecer" key={aba}>
-        {aba === 'relatorios' && <AbaRelatorios obraId={o.id} lista={relatorios} podeCriar={p.criarRelatorio} aoNovo={() => setNovoRdo(true)} />}
+        {aba === 'relatorios' && <AbaRelatorios obraId={o.id} lista={relatorios} podeCriar={p.criarRelatorio} aoNovo={novoRdo} />}
         {aba === 'fotos' && <AbaFotos obra={o} fotos={fotos.data ?? []} carregando={fotos.isLoading} podeEditar={p.enviarArquivos} />}
         {aba === 'documentos' && <ListaDocumentos documentos={docs.data ?? []} carregando={docs.isLoading} obra={o} podeEditar={p.enviarArquivos} />}
         {aba === 'clientes' && p.gerenciarClientes && <AbaClientes obra={o} />}
@@ -118,7 +120,6 @@ export default function ObraDetalhe() {
       </div>
 
       {p.editarObra && <FormularioObra aberto={editar} aoFechar={() => setEditar(false)} obra={o} />}
-      <ModalNovoRelatorio aberto={novoRdo} aoFechar={() => setNovoRdo(false)} obraId={o.id} temAnterior={!!relatorios.data?.length} />
       <ModalPdfPeriodo aberto={periodo} aoFechar={() => setPeriodo(false)} obraId={o.id} />
     </>
   )
@@ -313,9 +314,7 @@ function AbaInfo({ obra, podeExcluir, aoEditar }: { obra: NonNullable<ReturnType
     if (!ok) return
     setExcluindo(true)
     try {
-      const { error } = await supabase.from('obras').delete().eq('id', obra.id)
-      if (error) throw error
-      await removerPasta(`${obra.empresa_id}/${obra.id}`)
+      await excluirObraCompleta(obra)
       await qc.invalidateQueries({ queryKey: ['obras'] })
       void qc.invalidateQueries({ queryKey: ['painel'] })
       avisos.sucesso('Obra excluída.')

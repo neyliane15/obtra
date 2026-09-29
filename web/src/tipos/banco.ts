@@ -81,6 +81,9 @@ export interface Relatorio {
   status: StatusRelatorio
   horario_inicio: string | null
   horario_fim: string | null
+  intervalo_inicio: string | null
+  intervalo_fim: string | null
+  responsavel: string | null
   clima_manha: Clima | null
   clima_tarde: Clima | null
   clima_noite: Clima | null
@@ -104,12 +107,14 @@ interface FilhoBase {
 }
 
 export interface MaoObra extends FilhoBase {
+  colaborador_id: string | null
   funcao: string
   quantidade: number
   tipo: TipoMaoObra
   empresa_terceira: string | null
 }
 export interface Equipamento extends FilhoBase {
+  equipamento_id: string | null
   nome: string
   quantidade: number
 }
@@ -123,9 +128,58 @@ export interface Ocorrencia extends FilhoBase {
   tipo: TipoOcorrencia
 }
 export interface Material extends FilhoBase {
+  material_id: string | null
   descricao: string
-  quantidade: string | null
+  /** numeric(12,2) ou text, conforme o back — tratar os dois */
+  quantidade: number | string | null
+  unidade: string | null
   tipo: TipoMaterial
+}
+export interface NotaCompra extends FilhoBase {
+  fornecedor: string | null
+  numero_nota: string | null
+  valor: Grande | null
+  descricao: string | null
+}
+
+/* ------------------------------------------------ cadastros da empresa -- */
+interface CadastroBase {
+  id: string
+  empresa_id: string
+  ativo: boolean
+  criado_em: string
+}
+export interface Funcao extends CadastroBase {
+  nome: string
+}
+export interface Colaborador extends CadastroBase {
+  nome: string
+  funcao_id: string | null
+  tipo: TipoMaoObra
+  empresa_terceira: string | null
+  telefone: string | null
+  documento: string | null
+}
+export interface MaterialCadastro extends CadastroBase {
+  nome: string
+  unidade: string | null
+}
+export interface EquipamentoCadastro extends CadastroBase {
+  nome: string
+  identificacao: string | null
+}
+
+export interface Historico {
+  id: string | number
+  empresa_id: string | null
+  obra_id: string | null
+  usuario_id: string | null
+  usuario_nome: string | null
+  acao: string
+  entidade: string
+  entidade_id: string | null
+  descricao: string | null
+  criado_em: string
 }
 
 export interface Comentario {
@@ -170,6 +224,7 @@ export interface PainelResumo {
   relatorios_total: number
   relatorios_mes: number
   fotos_total: number
+  relatorios_pendentes?: number | null
   armazenamento_usado_bytes: Grande
   armazenamento_limite_bytes: Grande
   empresas_total?: number | null

@@ -19,9 +19,9 @@ export const STATUS_OBRA: Record<StatusObra, { rotulo: string; tom: Tom }> = {
 }
 
 export const STATUS_RELATORIO: Record<StatusRelatorio, { rotulo: string; tom: Tom; acao: string }> = {
-  preenchendo: { rotulo: 'Preenchendo', tom: 'neutro', acao: 'Voltar para preenchimento' },
-  revisar: { rotulo: 'Em revisão', tom: 'ambar', acao: 'Enviar para revisão' },
-  aprovado: { rotulo: 'Aprovado', tom: 'ok', acao: 'Aprovar relatório' },
+  preenchendo: { rotulo: 'Rascunho', tom: 'neutro', acao: 'Voltar para rascunho' },
+  revisar: { rotulo: 'Pendente Aprovação', tom: 'marinho', acao: 'Enviar para Aprovação' },
+  aprovado: { rotulo: 'Aprovado', tom: 'ok', acao: 'Aprovar' },
 }
 
 export const CLIMA: Record<Clima, string> = { claro: 'Claro', nublado: 'Nublado', chuvoso: 'Chuvoso' }
@@ -47,3 +47,27 @@ export const UFS = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
   'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
 ]
+
+export const ACAO_HISTORICO: Record<string, string> = {
+  criou: 'criou',
+  editou: 'editou',
+  excluiu: 'excluiu',
+  enviou_aprovacao: 'enviou para aprovação',
+  aprovou: 'aprovou',
+  reabriu: 'reabriu',
+  enviou_foto: 'enviou foto',
+  excluiu_foto: 'excluiu foto',
+  enviou_documento: 'anexou documento',
+  excluiu_documento: 'excluiu documento',
+}
+
+export const ENTIDADE_HISTORICO: Record<string, string> = {
+  obra: 'Obra',
+  relatorio: 'Relatório',
+  foto: 'Foto',
+  documento: 'Documento',
+  usuario: 'Usuário',
+  cadastro: 'Cadastro',
+}
+
+export const UNIDADES = ['un', 'm', 'm²', 'm³', 'kg', 't', 'sc', 'l', 'cx', 'pç', 'rolo', 'barra', 'milheiro']

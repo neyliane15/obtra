@@ -53,6 +53,11 @@ export function formatarHora(h: string | null | undefined): string {
   return h ? h.slice(0, 5) : ''
 }
 
+/** Código do relatório: 38 → "RD-38". */
+export function codigoRelatorio(n: number): string {
+  return `RD-${n}`
+}
+
 /** Nº do relatório com zeros à esquerda: 7 → "007". */
 export function numeroRelatorio(n: number): string {
   return String(n).padStart(3, '0')
@@ -80,4 +85,21 @@ export function telefoneWhatsApp(tel: string | null | undefined): string {
 /** Minúsculas sem acento, para busca. */
 export function normalizar(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+}
+
+/** Valor em reais. */
+export function formatarMoeda(v: number | string | null | undefined): string {
+  const n = typeof v === 'string' ? Number(v) : v
+  if (n === null || n === undefined || !Number.isFinite(n)) return '—'
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+/** Aceita "1.234,56", "1234.56" ou número; devolve número ou null. */
+export function lerNumero(v: string | number | null | undefined): number | null {
+  if (v === null || v === undefined || v === '') return null
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null
+  let s = v.trim().replace(/\s/g, '').replace(/^R\$/, '')
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.')
+  const n = Number(s)
+  return Number.isFinite(n) ? n : null
 }

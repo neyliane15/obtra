@@ -2,9 +2,10 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { clsx } from 'clsx'
 import {
-  Building2, ChevronsUpDown, HardHat, KeyRound, LayoutDashboard, LogOut, Menu, Settings2, ShieldCheck, UserRoundCheck, Users, X,
+  BriefcaseBusiness, Building2, ChevronsUpDown, ClipboardList, Download, HardHat, History, KeyRound, LayoutDashboard, LogOut, Menu, Package,
+  Settings, ShieldCheck, UserCog, Users, Wrench, X,
 } from 'lucide-react'
-import { Logo, Simbolo } from '@/componentes/Logo'
+import { Simbolo } from '@/componentes/Logo'
 import { Avatar } from '@/componentes/ui'
 import { ModalTrocarSenha } from '@/componentes/TrocarSenha'
 import { ImagemAssinada } from '@/componentes/midia'
@@ -19,20 +20,26 @@ interface ItemNav {
   para: string
   rotulo: string
   icone: ReactNode
-  grupo: 'obra' | 'gestao' | 'master'
+  grupo: 'obra' | 'cadastros' | 'gestao' | 'master'
+  /** mostra na navegação inferior do celular */
+  atalho?: boolean
 }
 
 function useItens(): ItemNav[] {
   const perfil = usePerfil()
-  const { empresaId } = useSessao()
   const p = permissoes(perfil.papel)
-  const itens: ItemNav[] = []
-  if (p.verPainel) itens.push({ para: '/painel', rotulo: 'Painel', icone: <LayoutDashboard />, grupo: 'obra' })
-  itens.push({ para: '/obras', rotulo: 'Obras', icone: <HardHat />, grupo: 'obra' })
-  if (p.gerenciarEquipe) itens.push({ para: '/equipe', rotulo: 'Equipe', icone: <Users />, grupo: 'gestao' })
-  if (p.gerenciarClientes) itens.push({ para: '/clientes', rotulo: 'Clientes', icone: <UserRoundCheck />, grupo: 'gestao' })
-  if (p.configurarEmpresa && (perfil.papel !== 'master' || empresaId))
-    itens.push({ para: '/empresa', rotulo: 'Empresa', icone: <Settings2 />, grupo: 'gestao' })
+  const itens: ItemNav[] = [
+    { para: '/painel', rotulo: 'Dashboard', icone: <LayoutDashboard />, grupo: 'obra', atalho: true },
+    { para: '/obras', rotulo: 'Obras', icone: <HardHat />, grupo: 'obra', atalho: true },
+    { para: '/relatorios', rotulo: 'Relatórios (RDO)', icone: <ClipboardList />, grupo: 'obra', atalho: true },
+    { para: '/historico', rotulo: 'Histórico', icone: <History />, grupo: 'obra', atalho: true },
+    { para: '/cadastros/mao-de-obra', rotulo: 'Mão de Obra', icone: <Users />, grupo: 'cadastros' },
+    { para: '/cadastros/funcoes', rotulo: 'Funções', icone: <BriefcaseBusiness />, grupo: 'cadastros' },
+    { para: '/cadastros/materiais', rotulo: 'Materiais', icone: <Package />, grupo: 'cadastros' },
+    { para: '/cadastros/equipamentos', rotulo: 'Equipamentos', icone: <Wrench />, grupo: 'cadastros' },
+    { para: '/exportacao', rotulo: 'Relatórios & Exportação', icone: <Download />, grupo: 'gestao' },
+  ]
+  if (p.gerenciarEquipe) itens.push({ para: '/usuarios', rotulo: 'Usuários & Clientes', icone: <UserCog />, grupo: 'gestao' })
   if (p.areaMaster) {
     itens.push({ para: '/master/empresas', rotulo: 'Empresas', icone: <Building2 />, grupo: 'master' })
     itens.push({ para: '/master/usuarios', rotulo: 'Todos os usuários', icone: <ShieldCheck />, grupo: 'master' })
@@ -40,42 +47,49 @@ function useItens(): ItemNav[] {
   return itens
 }
 
-const GRUPOS: Record<ItemNav['grupo'], string> = { obra: 'Operação', gestao: 'Gestão', master: 'Plataforma' }
+const GRUPOS: Record<ItemNav['grupo'], string> = { obra: 'Operação', cadastros: 'Cadastros', gestao: 'Gestão', master: 'Plataforma' }
+
+function ItemLateral({ para, icone, rotulo, aoNavegar, fim }: { para: string; icone: ReactNode; rotulo: string; aoNavegar?: () => void; fim?: boolean }) {
+  return (
+    <NavLink
+      to={para}
+      end={fim}
+      onClick={aoNavegar}
+      className={({ isActive }) =>
+        clsx(
+          'group relative flex h-[34px] items-center gap-2.5 rounded-md px-3 text-[12.5px] font-medium transition-colors [&_svg]:size-[15px]',
+          isActive ? 'bg-ambar-500/[0.14] text-ambar-400' : 'text-marinho-200/75 hover:bg-white/[0.05] hover:text-white',
+        )
+      }
+    >
+      {({ isActive }) => (
+        <>
+          {isActive && <span className="absolute top-1.5 bottom-1.5 -left-[13px] w-[3px] rounded-r bg-ambar-500" />}
+          <span className={clsx(isActive ? 'text-ambar-400' : 'text-marinho-300/60 group-hover:text-marinho-200')}>{icone}</span>
+          <span className="truncate">{rotulo}</span>
+        </>
+      )}
+    </NavLink>
+  )
+}
 
 function Navegacao({ aoNavegar }: { aoNavegar?: () => void }) {
   const itens = useItens()
-  const grupos = (['obra', 'gestao', 'master'] as const).filter((g) => itens.some((i) => i.grupo === g))
+  const grupos = (['obra', 'cadastros', 'gestao', 'master'] as const).filter((g) => itens.some((i) => i.grupo === g))
   return (
-    <nav className="flex flex-col gap-5" aria-label="Principal">
+    <nav className="flex flex-col gap-4" aria-label="Principal">
       {grupos.map((g) => (
         <div key={g}>
-          <p className="mb-1.5 flex items-center gap-2 px-3 font-mono text-[9.5px] tracking-[0.2em] text-marinho-300/70 uppercase">
+          <p className="mb-1 flex items-center gap-2 px-3 font-mono text-[9px] tracking-[0.2em] text-marinho-300/55 uppercase">
             {GRUPOS[g]}
             <span className="h-px flex-1 border-t border-dashed border-white/10" />
           </p>
-          <ul className="flex flex-col gap-0.5">
+          <ul className="flex flex-col gap-px">
             {itens
               .filter((i) => i.grupo === g)
               .map((i) => (
                 <li key={i.para}>
-                  <NavLink
-                    to={i.para}
-                    onClick={aoNavegar}
-                    className={({ isActive }) =>
-                      clsx(
-                        'group relative flex h-9 items-center gap-2.5 rounded-md px-3 text-[12.5px] font-medium transition-colors [&_svg]:size-[15px]',
-                        isActive ? 'bg-white/[0.08] text-white' : 'text-marinho-200/80 hover:bg-white/[0.04] hover:text-white',
-                      )
-                    }
-                  >
-                    {({ isActive }) => (
-                      <>
-                        {isActive && <span className="absolute top-2 bottom-2 -left-[13px] w-[3px] rounded-r bg-ambar-500" />}
-                        <span className={clsx(isActive ? 'text-ambar-400' : 'text-marinho-300/70 group-hover:text-marinho-200')}>{i.icone}</span>
-                        {i.rotulo}
-                      </>
-                    )}
-                  </NavLink>
+                  <ItemLateral para={i.para} icone={i.icone} rotulo={i.rotulo} aoNavegar={aoNavegar} />
                 </li>
               ))}
           </ul>
@@ -85,29 +99,31 @@ function Navegacao({ aoNavegar }: { aoNavegar?: () => void }) {
   )
 }
 
+/** Topo da lateral: logo + nome da empresa + "OBTRA · RDO". */
+function Marca() {
+  const { ehMaster, empresa } = useSessao()
+  return (
+    <div className="flex items-center gap-3">
+      {empresa?.logo_path ? (
+        <ImagemAssinada caminho={empresa.logo_path} alt="" className="size-10 shrink-0 rounded-lg bg-white ring-1 ring-white/10" classeImg="!object-contain p-1" />
+      ) : (
+        <Simbolo tamanho={40} className="shrink-0 rounded-[10px] ring-1 ring-white/10" />
+      )}
+      <div className="min-w-0">
+        <p className="truncate font-display text-[14px] leading-tight font-bold text-white">{empresa?.nome ?? (ehMaster ? 'Obtra' : '—')}</p>
+        <p className="mt-0.5 font-mono text-[9.5px] font-semibold tracking-[0.22em] text-ambar-400">OBTRA · RDO</p>
+      </div>
+    </div>
+  )
+}
+
 function SeletorEmpresa() {
   const { ehMaster, empresas, empresaId, empresa, trocarEmpresa } = useSessao()
-  if (!ehMaster) {
-    return (
-      <div className="flex items-center gap-2.5 rounded-lg border border-white/10 bg-white/[0.04] p-2">
-        {empresa?.logo_path ? (
-          <ImagemAssinada caminho={empresa.logo_path} alt="" className="size-8 shrink-0 rounded-md bg-white" classeImg="!object-contain p-0.5" />
-        ) : (
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-marinho-700 text-marinho-200">
-            <Building2 className="size-4" />
-          </span>
-        )}
-        <div className="min-w-0">
-          <p className="font-mono text-[9px] tracking-[0.18em] text-marinho-300/70 uppercase">Empresa</p>
-          <p className="truncate text-[12.5px] font-semibold text-white">{empresa?.nome ?? '—'}</p>
-        </div>
-      </div>
-    )
-  }
+  if (!ehMaster) return null
   return (
-    <label className="relative block rounded-lg border border-ambar-500/30 bg-ambar-500/[0.07] p-2 pr-7">
-      <span className="block font-mono text-[9px] tracking-[0.18em] text-ambar-400 uppercase">Contexto master</span>
-      <span className="block truncate text-[12.5px] font-semibold text-white">{empresa?.nome ?? 'Todas as empresas'}</span>
+    <label className="relative block rounded-lg border border-ambar-500/25 bg-ambar-500/[0.06] px-2.5 py-2 pr-7">
+      <span className="block font-mono text-[9px] tracking-[0.18em] text-ambar-400/90 uppercase">Contexto master</span>
+      <span className="block truncate text-[12px] font-semibold text-white">{empresa?.nome ?? 'Todas as empresas'}</span>
       <ChevronsUpDown className="absolute top-1/2 right-2 size-3.5 -translate-y-1/2 text-marinho-300" />
       <select
         className="absolute inset-0 cursor-pointer opacity-0"
@@ -214,23 +230,37 @@ export function MenuUsuario({ escuro = true, compacto = false }: { escuro?: bool
 }
 
 function ConteudoLateral({ aoNavegar }: { aoNavegar?: () => void }) {
+  const perfil = usePerfil()
+  const { sair, empresaId } = useSessao()
+  const p = permissoes(perfil.papel)
   return (
     <div className="blueprint relative flex h-full flex-col text-white">
       <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-white/15 to-transparent" />
-      <div className="flex items-center justify-between px-5 pt-5 pb-4">
-        <Logo claro tamanho={26} comLegenda />
-        <span className="font-mono text-[9px] tracking-widest text-marinho-300/50">v1.0</span>
+      <div className="border-b border-white/[0.07] px-5 pt-5 pb-4">
+        <Marca />
       </div>
-      <div className="px-4 pb-4">
-        <SeletorEmpresa />
-      </div>
-      <div className="mx-4 cota opacity-30" aria-hidden />
-      <div className="rolagem-fina flex-1 overflow-y-auto px-4 pt-4">
+      {perfil.papel === 'master' && (
+        <div className="px-4 pt-3">
+          <SeletorEmpresa />
+        </div>
+      )}
+      <div className="rolagem-fina flex-1 overflow-y-auto px-4 pt-4 pb-2">
         <Navegacao aoNavegar={aoNavegar} />
       </div>
-      <div className="flex flex-col gap-3 px-4 pt-3 pb-4">
+      <div className="flex flex-col gap-2 border-t border-white/[0.07] px-4 pt-3 pb-4">
         <UsoArmazenamento />
-        <div className="border-t border-white/10 pt-3">
+        <div className="flex flex-col gap-px">
+          {p.configurarEmpresa && (perfil.papel !== 'master' || empresaId) && (
+            <ItemLateral para="/empresa" icone={<Settings />} rotulo="Configurações" aoNavegar={aoNavegar} />
+          )}
+          <button
+            onClick={() => void sair()}
+            className="flex h-[34px] items-center gap-2.5 rounded-md px-3 text-[12.5px] font-medium text-marinho-200/75 transition-colors hover:bg-white/[0.05] hover:text-white [&_svg]:size-[15px]"
+          >
+            <LogOut className="text-marinho-300/60" /> Sair
+          </button>
+        </div>
+        <div className="mt-1 border-t border-dashed border-white/10 pt-2.5">
           <MenuUsuario />
         </div>
       </div>
@@ -239,7 +269,7 @@ function ConteudoLateral({ aoNavegar }: { aoNavegar?: () => void }) {
 }
 
 function NavInferior({ aoMais }: { aoMais: () => void }) {
-  const itens = useItens().slice(0, 4)
+  const itens = useItens().filter((i) => i.atalho)
   return (
     <nav className="pb-seguro fixed inset-x-0 bottom-0 z-40 border-t border-linha bg-white/95 backdrop-blur lg:hidden" aria-label="Navegação inferior">
       <ul className="grid" style={{ gridTemplateColumns: `repeat(${itens.length + 1}, minmax(0, 1fr))` }}>
@@ -258,7 +288,7 @@ function NavInferior({ aoMais }: { aoMais: () => void }) {
                 <>
                   {isActive && <span className="absolute top-0 h-[2px] w-8 rounded-b bg-ambar-500" />}
                   {i.icone}
-                  <span className="max-w-full truncate px-1">{i.rotulo}</span>
+                  <span className="max-w-full truncate px-1">{i.rotulo.replace(' (RDO)', '')}</span>
                 </>
               )}
             </NavLink>
