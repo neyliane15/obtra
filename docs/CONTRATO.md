@@ -116,3 +116,55 @@ Todas têm RLS ligada. `id uuid default gen_random_uuid()` e `criado_em timestam
 - `engenheiro@construtoraaurora.com.br` (colaborador, Construtora Aurora)
 - `cliente@exemplo.com` (cliente, vê a obra "Residencial Vista Azul")
 - `admin@betaengenharia.com.br` (admin, Beta Engenharia — outra empresa, para provar isolamento)
+
+---
+
+## ADENDO 1 — Estrutura baseada nos prints de referência do cliente (prevalece sobre o texto acima)
+
+O cliente enviou prints de um sistema de referência ("RDO PRO"). O Obtra deve seguir essa ESTRUTURA (com identidade própria: azul-escuro, fundo claro).
+
+### Menu lateral (equipe da empresa)
+Dashboard · Obras · Relatórios (RDO) · Histórico · Mão de Obra · Funções · Materiais · Equipamentos · Relatórios & Exportação · Usuários & Clientes · (rodapé) Configurações · Sair · cartão do usuário (iniciais, nome, papel).
+Topo da sidebar: logo da empresa (ou do Obtra) + nome da empresa + subtítulo "OBTRA · RDO".
+Master tem ainda: Empresas (área master) e seletor de empresa.
+
+### Obras — lista em TABELA
+Colunas: Obra · Contratante · Local (cidade - UF) · Responsável · Prazo (dias) · Decorrido (dias desde data_inicio) · A vencer (prazo − decorrido; vermelho se negativo) · Status (pílula) · Ações (editar, excluir). Filtros: busca (obra, contratante, responsável), status, responsável. Botão "+ Nova Obra". Subtítulo "N obras cadastradas". (Pode ter alternância tabela/cartões; tabela é o padrão; no celular vira cartões.)
+
+### Relatórios (RDO) — lista GLOBAL da empresa
+Colunas: Nº (formato `RD-{numero}`) · Obra · Data (dd/mm/aaaa) · Dia (da semana) · Responsável · Status (Rascunho / Pendente Aprovação / Aprovado) · Aprovado por · Ações. Filtros: busca por número ou obra, obra, status. Botão "+ Novo RDO". Subtítulo "X de Y relatórios".
+Rótulos de status: `preenchendo` → "Rascunho"; `revisar` → "Pendente Aprovação"; `aprovado` → "Aprovado".
+
+### Formulário do RDO (novo/editar) — seções colapsáveis com contador de itens
+1. **Cabeçalho do Relatório**: Nº (RD-x, somente leitura), Obra (select), Data, Dia da semana (automático), Responsável (texto, default nome do usuário).
+2. **Informações de Prazo** (automático da obra): Prazo contratual, Prazo decorrido (na data do RDO), Prazo a vencer.
+3. **Horário de Trabalho**: Entrada, Saída, Intervalo início, Intervalo fim, Horas trabalhadas (calculado, ex.: 08h00).
+4. **Condição Climática**: cartões Manhã / Tarde (/ Noite opcional) com Clima (claro, nublado, chuvoso) e Condição (praticável, impraticável), ícones.
+5. **Mão de Obra**: linhas (colaborador do cadastro ou função + quantidade, própria/terceirizada); botões "Adicionar linha", "Novo colaborador", "Nova função" (cadastram na hora).
+6. **Equipamentos** (do cadastro ou livre, com quantidade).
+7. **Atividades Realizadas**.
+8. **Ocorrências**.
+9. **Comentários**.
+10. **Materiais Recebidos** e 11. **Materiais Utilizados** (do cadastro de materiais ou livre; quantidade + unidade).
+12. **Notas de Compras** (fornecedor, nº da nota, valor, descrição).
+13. **Galeria de Fotos**.
+Rodapé FIXO (sticky) com pílula de status à esquerda e botões: "Salvar Rascunho" · "Enviar para Aprovação" · "Salvar e Aprovar" (este só admin/master).
+No fluxo "Novo RDO" o relatório só é criado (RPC `criar_relatorio`) ao escolher obra+data e salvar; depois segue editando.
+
+### Mudanças no banco
+- `relatorios`: + `responsavel text`, + `intervalo_inicio time`, + `intervalo_fim time`. (Noite continua opcional.)
+- Cadastros por empresa (todos: `id, empresa_id uuid not null references empresas on delete cascade` — preenchido por default/trigger com `minha_empresa()` quando nulo e o usuário não é master —, `ativo bool default true, criado_em`, `unique(empresa_id, nome)` quando fizer sentido; RLS: equipe da empresa lê e escreve; admin/master excluem; colaborador pode inserir/editar; cliente não vê):
+  - `funcoes`: `nome text not null`
+  - `colaboradores` (Mão de Obra): `nome text not null, funcao_id uuid references funcoes on delete set null, tipo text not null default 'propria' check in ('propria','terceirizada'), empresa_terceira text, telefone text, documento text`
+  - `materiais`: `nome text not null, unidade text` (ex.: m³, sc, un, kg)
+  - `equipamentos`: `nome text not null, identificacao text`
+- `relatorio_mao_obra`: + `colaborador_id uuid references colaboradores on delete set null`, `funcao` continua texto (preenchido com a função do colaborador ou digitado).
+- `relatorio_equipamentos`: + `equipamento_id uuid references equipamentos on delete set null`.
+- `relatorio_materiais`: + `material_id uuid references materiais on delete set null`, + `unidade text`. `quantidade` passa a `numeric(12,2)` (ou mantém text — o back decide e documenta; o front trata ambos).
+- Nova `relatorio_notas_compras`: `id, relatorio_id, ordem, fornecedor text, numero_nota text, valor numeric(12,2), descricao text, criado_em` (mesmas regras dos outros filhos).
+- `criar_relatorio(p_obra, p_data, p_copiar_anterior)` copia também horário (entrada/saída/intervalo) e `responsavel` do anterior; `responsavel` default = nome do perfil.
+- Nova `historico`: `id bigserial/uuid, empresa_id uuid, obra_id uuid null, usuario_id uuid null, usuario_nome text, acao text ('criou','editou','excluiu','enviou_aprovacao','aprovou','reabriu','enviou_foto', ...), entidade text ('obra','relatorio','foto','documento','usuario','cadastro'), entidade_id uuid, descricao text, criado_em`. Alimentada por triggers (obras insert/update/delete, relatorios insert/delete e mudança de status, fotos insert/delete, documentos insert/delete). Leitura: master e equipe da empresa (cliente não). Ninguém escreve direto (só triggers security definer). Índice por (empresa_id, criado_em desc).
+- `painel_resumo()` inclui também `relatorios_pendentes` (status revisar).
+
+### Visual
+Seguir o espírito dos prints (sidebar escura, conteúdo claro, tabelas em cartão com cabeçalho em versalete pequeno, pílulas de status, botões de ação primários chamativos, rodapé fixo no RDO), MAS com a identidade Obtra: sidebar azul-marinho profundo, acento âmbar/amarelo de canteiro para o item ativo e botão primário (como no print, porém harmonizado com o azul), fontes menores e mais refinadas que o print, detalhes de borda (cantoneiras/linhas de prancha técnica).
