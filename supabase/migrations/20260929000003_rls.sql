@@ -4,28 +4,33 @@
 -- Todas as políticas são `to authenticated`: o anônimo não tem política
 -- nenhuma (e nem privilégio de tabela — ver 0006), então não vê nada.
 -- Regras de empresa inativa / perfil inativo moram nas funções auxiliares
--- (eh_equipe, eh_admin, eh_cliente_da_obra), não repetidas aqui.
+-- (empresa_da_equipe, empresa_do_admin, obras_do_cliente...), não repetidas aqui.
+--
+-- Desempenho: tudo que não depende da linha vai dentro de `(select ...)` —
+-- o Postgres calcula uma vez por consulta (initPlan) em vez de uma vez por
+-- linha, e `empresa_id = (select ...)` usa o índice de empresa_id. Por isso
+-- `(select auth.uid())`, `(select public.eh_master())` etc.
 -- ============================================================================
 
 -- ------------------------------------------------------------- empresas ----
 drop policy if exists empresas_ler on public.empresas;
 create policy empresas_ler on public.empresas for select to authenticated
-  using (public.eh_master() or (id = public.minha_empresa() and ativa));
+  using ((select public.eh_master()) or (id = (select public.minha_empresa()) and ativa));
 
 drop policy if exists empresas_inserir on public.empresas;
 create policy empresas_inserir on public.empresas for insert to authenticated
-  with check (public.eh_master());
+  with check ((select public.eh_master()));
 
 -- Admin edita os dados da própria empresa; limite e `ativa` são barrados
 -- pelo gatilho empresas_proteger.
 drop policy if exists empresas_atualizar on public.empresas;
 create policy empresas_atualizar on public.empresas for update to authenticated
-  using (public.eh_admin(id))
-  with check (public.eh_admin(id));
+  using (((select public.eh_master()) or id = (select public.empresa_do_admin())))
+  with check (((select public.eh_master()) or id = (select public.empresa_do_admin())));
 
 drop policy if exists empresas_excluir on public.empresas;
 create policy empresas_excluir on public.empresas for delete to authenticated
-  using (public.eh_master());
+  using ((select public.eh_master()));
 
 -- --------------------------------------------------------------- perfis ----
 -- O próprio perfil é sempre legível (mesmo inativo): é assim que a tela sabe
@@ -35,13 +40,10 @@ create policy empresas_excluir on public.empresas for delete to authenticated
 drop policy if exists perfis_ler on public.perfis;
 create policy perfis_ler on public.perfis for select to authenticated
   using (
-    id = auth.uid()
-    or public.eh_master()
-    or (empresa_id is not null and public.eh_equipe(empresa_id))
-    or (papel in ('admin', 'colaborador')
-        and empresa_id = public.minha_empresa()
-        and public.meu_papel() = 'cliente'
-        and exists (select 1 from public.empresas e where e.id = empresa_id and e.ativa))
+    id = (select auth.uid())
+    or (select public.eh_master())
+    or empresa_id = (select public.empresa_da_equipe())
+    or (papel in ('admin', 'colaborador') and empresa_id = (select public.empresa_do_cliente()))
   );
 
 -- Sem insert/delete: perfis nascem do gatilho em auth.users e morrem com ele
@@ -49,86 +51,87 @@ create policy perfis_ler on public.perfis for select to authenticated
 drop policy if exists perfis_atualizar on public.perfis;
 create policy perfis_atualizar on public.perfis for update to authenticated
   using (
-    id = auth.uid()
-    or public.eh_master()
-    or (papel <> 'master' and empresa_id is not null and public.eh_admin(empresa_id))
+    id = (select auth.uid())
+    or (select public.eh_master())
+    or (papel <> 'master' and empresa_id = (select public.empresa_do_admin()))
   )
   with check (
-    id = auth.uid()
-    or public.eh_master()
-    or (papel <> 'master' and empresa_id is not null and public.eh_admin(empresa_id))
+    id = (select auth.uid())
+    or (select public.eh_master())
+    or (papel <> 'master' and empresa_id = (select public.empresa_do_admin()))
   );
 
 -- --------------------------------------------------------- configuracao ----
 drop policy if exists configuracao_ler on public.configuracao;
 create policy configuracao_ler on public.configuracao for select to authenticated
-  using (public.eh_master());
+  using ((select public.eh_master()));
 
 -- ---------------------------------------------------------------- obras ----
 drop policy if exists obras_ler on public.obras;
 create policy obras_ler on public.obras for select to authenticated
-  using (public.eh_equipe(empresa_id) or public.eh_cliente_da_obra(id));
+  using (((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe()))
+         or id in (select public.obras_do_cliente()));
 
 drop policy if exists obras_inserir on public.obras;
 create policy obras_inserir on public.obras for insert to authenticated
-  with check (public.eh_admin(empresa_id));
+  with check (((select public.eh_master()) or empresa_id = (select public.empresa_do_admin())));
 
 -- Colaborador atualiza (status, capa, observações), não cria nem exclui.
 drop policy if exists obras_atualizar on public.obras;
 create policy obras_atualizar on public.obras for update to authenticated
-  using (public.eh_equipe(empresa_id))
-  with check (public.eh_equipe(empresa_id));
+  using (((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe())))
+  with check (((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe())));
 
 drop policy if exists obras_excluir on public.obras;
 create policy obras_excluir on public.obras for delete to authenticated
-  using (public.eh_admin(empresa_id));
+  using (((select public.eh_master()) or empresa_id = (select public.empresa_do_admin())));
 
 -- -------------------------------------------------------- obra_clientes ----
 drop policy if exists obra_clientes_ler on public.obra_clientes;
 create policy obra_clientes_ler on public.obra_clientes for select to authenticated
   using (
-    public.eh_equipe(public.empresa_da_obra(obra_id))
-    or (cliente_id = auth.uid() and public.eh_cliente_da_obra(obra_id))
+    ((select public.eh_master()) or public.empresa_da_obra(obra_id) = (select public.empresa_da_equipe()))
+    or (cliente_id = (select auth.uid()) and obra_id in (select public.obras_do_cliente()))
   );
 
 drop policy if exists obra_clientes_inserir on public.obra_clientes;
 create policy obra_clientes_inserir on public.obra_clientes for insert to authenticated
-  with check (public.eh_admin(public.empresa_da_obra(obra_id)));
+  with check (((select public.eh_master()) or public.empresa_da_obra(obra_id) = (select public.empresa_do_admin())));
 
 drop policy if exists obra_clientes_excluir on public.obra_clientes;
 create policy obra_clientes_excluir on public.obra_clientes for delete to authenticated
-  using (public.eh_admin(public.empresa_da_obra(obra_id)));
+  using (((select public.eh_master()) or public.empresa_da_obra(obra_id) = (select public.empresa_do_admin())));
 
 -- ----------------------------------------------------------- relatorios ----
 drop policy if exists relatorios_ler on public.relatorios;
 create policy relatorios_ler on public.relatorios for select to authenticated
   using (
-    public.eh_equipe(empresa_id)
-    or (status = 'aprovado' and public.eh_cliente_da_obra(obra_id))
+    ((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe()))
+    or (status = 'aprovado' and obra_id in (select public.obras_do_cliente()))
   );
 
 -- Colaborador cria e edita, mas não grava `aprovado` nem mexe em aprovado.
 drop policy if exists relatorios_inserir on public.relatorios;
 create policy relatorios_inserir on public.relatorios for insert to authenticated
   with check (
-    public.eh_equipe(empresa_id)
-    and (status <> 'aprovado' or public.eh_admin(empresa_id))
+    ((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe()))
+    and (status <> 'aprovado' or ((select public.eh_master()) or empresa_id = (select public.empresa_do_admin())))
   );
 
 drop policy if exists relatorios_atualizar on public.relatorios;
 create policy relatorios_atualizar on public.relatorios for update to authenticated
   using (
-    public.eh_equipe(empresa_id)
-    and (status <> 'aprovado' or public.eh_admin(empresa_id))
+    ((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe()))
+    and (status <> 'aprovado' or ((select public.eh_master()) or empresa_id = (select public.empresa_do_admin())))
   )
   with check (
-    public.eh_equipe(empresa_id)
-    and (status <> 'aprovado' or public.eh_admin(empresa_id))
+    ((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe()))
+    and (status <> 'aprovado' or ((select public.eh_master()) or empresa_id = (select public.empresa_do_admin())))
   );
 
 drop policy if exists relatorios_excluir on public.relatorios;
 create policy relatorios_excluir on public.relatorios for delete to authenticated
-  using (public.eh_admin(empresa_id));
+  using (((select public.eh_master()) or empresa_id = (select public.empresa_do_admin())));
 
 -- ------------------------------------------------ filhos do relatório ------
 do $$
@@ -164,17 +167,17 @@ create policy relatorio_comentarios_ler on public.relatorio_comentarios for sele
 
 drop policy if exists relatorio_comentarios_inserir on public.relatorio_comentarios;
 create policy relatorio_comentarios_inserir on public.relatorio_comentarios for insert to authenticated
-  with check (autor_id = auth.uid() and public.pode_ver_relatorio(relatorio_id));
+  with check (autor_id = (select auth.uid()) and public.pode_ver_relatorio(relatorio_id));
 
 drop policy if exists relatorio_comentarios_atualizar on public.relatorio_comentarios;
 create policy relatorio_comentarios_atualizar on public.relatorio_comentarios for update to authenticated
-  using (autor_id = auth.uid() and public.pode_ver_relatorio(relatorio_id))
-  with check (autor_id = auth.uid() and public.pode_ver_relatorio(relatorio_id));
+  using (autor_id = (select auth.uid()) and public.pode_ver_relatorio(relatorio_id))
+  with check (autor_id = (select auth.uid()) and public.pode_ver_relatorio(relatorio_id));
 
 drop policy if exists relatorio_comentarios_excluir on public.relatorio_comentarios;
 create policy relatorio_comentarios_excluir on public.relatorio_comentarios for delete to authenticated
   using (
-    (autor_id = auth.uid() and public.pode_ver_relatorio(relatorio_id))
+    (autor_id = (select auth.uid()) and public.pode_ver_relatorio(relatorio_id))
     or public.eh_admin(public.empresa_do_relatorio(relatorio_id))
   );
 
@@ -183,33 +186,33 @@ create policy relatorio_comentarios_excluir on public.relatorio_comentarios for 
 drop policy if exists fotos_ler on public.fotos;
 create policy fotos_ler on public.fotos for select to authenticated
   using (
-    public.eh_equipe(empresa_id)
-    or (public.eh_cliente_da_obra(obra_id)
+    ((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe()))
+    or (obra_id in (select public.obras_do_cliente())
         and (relatorio_id is null or public.pode_ver_relatorio(relatorio_id)))
   );
 
 drop policy if exists fotos_inserir on public.fotos;
 create policy fotos_inserir on public.fotos for insert to authenticated
   with check (
-    public.eh_equipe(empresa_id)
+    ((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe()))
     and (relatorio_id is null or public.pode_editar_relatorio(relatorio_id))
   );
 
 drop policy if exists fotos_atualizar on public.fotos;
 create policy fotos_atualizar on public.fotos for update to authenticated
   using (
-    public.eh_equipe(empresa_id)
+    ((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe()))
     and (relatorio_id is null or public.pode_editar_relatorio(relatorio_id))
   )
   with check (
-    public.eh_equipe(empresa_id)
+    ((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe()))
     and (relatorio_id is null or public.pode_editar_relatorio(relatorio_id))
   );
 
 drop policy if exists fotos_excluir on public.fotos;
 create policy fotos_excluir on public.fotos for delete to authenticated
   using (
-    public.eh_equipe(empresa_id)
+    ((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe()))
     and (relatorio_id is null or public.pode_editar_relatorio(relatorio_id))
   );
 
@@ -217,22 +220,22 @@ create policy fotos_excluir on public.fotos for delete to authenticated
 drop policy if exists documentos_ler on public.documentos;
 create policy documentos_ler on public.documentos for select to authenticated
   using (
-    public.eh_equipe(empresa_id)
-    or (visivel_cliente and public.eh_cliente_da_obra(obra_id))
+    ((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe()))
+    or (visivel_cliente and obra_id in (select public.obras_do_cliente()))
   );
 
 drop policy if exists documentos_inserir on public.documentos;
 create policy documentos_inserir on public.documentos for insert to authenticated
-  with check (public.eh_equipe(empresa_id));
+  with check (((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe())));
 
 drop policy if exists documentos_atualizar on public.documentos;
 create policy documentos_atualizar on public.documentos for update to authenticated
-  using (public.eh_equipe(empresa_id))
-  with check (public.eh_equipe(empresa_id));
+  using (((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe())))
+  with check (((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe())));
 
 drop policy if exists documentos_excluir on public.documentos;
 create policy documentos_excluir on public.documentos for delete to authenticated
-  using (public.eh_equipe(empresa_id));
+  using (((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe())));
 
 -- ------------------------------------------ cadastros da empresa (Adendo 1) -
 -- Equipe lê, cria e edita; admin/master excluem; cliente não vê.
@@ -242,20 +245,20 @@ begin
   foreach t in array array['funcoes', 'colaboradores', 'materiais', 'equipamentos'] loop
     execute format('drop policy if exists %I on public.%I', t || '_ler', t);
     execute format('create policy %I on public.%I for select to authenticated
-                      using (public.eh_equipe(empresa_id))', t || '_ler', t);
+                      using (((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe())))', t || '_ler', t);
 
     execute format('drop policy if exists %I on public.%I', t || '_inserir', t);
     execute format('create policy %I on public.%I for insert to authenticated
-                      with check (public.eh_equipe(empresa_id))', t || '_inserir', t);
+                      with check (((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe())))', t || '_inserir', t);
 
     execute format('drop policy if exists %I on public.%I', t || '_atualizar', t);
     execute format('create policy %I on public.%I for update to authenticated
-                      using (public.eh_equipe(empresa_id))
-                      with check (public.eh_equipe(empresa_id))', t || '_atualizar', t);
+                      using (((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe())))
+                      with check (((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe())))', t || '_atualizar', t);
 
     execute format('drop policy if exists %I on public.%I', t || '_excluir', t);
     execute format('create policy %I on public.%I for delete to authenticated
-                      using (public.eh_admin(empresa_id))', t || '_excluir', t);
+                      using (((select public.eh_master()) or empresa_id = (select public.empresa_do_admin())))', t || '_excluir', t);
   end loop;
 end $$;
 
@@ -263,4 +266,4 @@ end $$;
 -- Só leitura (equipe da empresa e master). Escrita: apenas os gatilhos.
 drop policy if exists historico_ler on public.historico;
 create policy historico_ler on public.historico for select to authenticated
-  using (public.eh_equipe(empresa_id));
+  using (((select public.eh_master()) or empresa_id = (select public.empresa_da_equipe())));

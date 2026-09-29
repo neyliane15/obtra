@@ -50,7 +50,15 @@ cluster sozinho, como usuário `pg`, socket em `/home/pg/sock`).
 `testes/00_ambiente_supabase.sql` imita o que o Supabase traz pronto
 (`auth.users`/`auth.identities` com as colunas do GoTrue, `auth.uid()`,
 `storage.*`, papéis `anon`/`authenticated`/`service_role`/`authenticator`,
-`extensions.pgcrypto`). Os testes vestem cada usuário com
+`extensions.pgcrypto`) — inclusive os **privilégios padrão** do Supabase em
+`public` (ALL para anon/authenticated em toda tabela/função nova), que a 0006
+tem de desfazer. Os testes vestem cada usuário com
 `set local role authenticated` + `request.jwt.claim.sub`, como o PostgREST.
+
+`testes/40_auditoria.sql` é a auditoria adversarial: catálogo (quem executa
+o quê, `search_path`, RLS ligada, índice em toda FK, `(select auth.uid())` nas
+políticas), isolamento entre empresas em todas as tabelas e no bucket,
+escalonamento de privilégio, cliente, cota, numeração, histórico e o formato
+das contas em `auth.users`/`auth.identities`.
 
 Para o sistema inteiro rodando (API + login + Storage): `ferramentas/local/`.

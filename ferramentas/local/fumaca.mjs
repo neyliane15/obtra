@@ -282,6 +282,52 @@ async function principal() {
     conferir('admin exclui o usuário e ele não entra mais', !eExc && !!eLogin, { eExc, eLogin })
   }
 
+  // ------------------------------------ criar_relatorio simultâneo -------
+  // Oito RDOs na mesma obra ao mesmo tempo (admin e engenheiro alternados):
+  // o gatilho trava a obra, então os números saem únicos e sem buraco.
+  {
+    const { data: obra } = await admin.sb.from('obras').select('id').order('nome').limit(1).single()
+    const { data: ult } = await admin.sb
+      .from('relatorios').select('numero').eq('obra_id', obra.id).order('numero', { ascending: false }).limit(1)
+    const antes = ult?.[0]?.numero ?? 0
+    const datas = Array.from({ length: 8 }, (_, i) => `2030-01-0${i + 1}`)
+    const res = await Promise.all(
+      datas.map((d, i) =>
+        (i % 2 ? eng : admin).sb.rpc('criar_relatorio', { p_obra: obra.id, p_data: d, p_copiar_anterior: false }),
+      ),
+    )
+    const erros = res.filter((r) => r.error).map((r) => r.error.message)
+    const ids = res.map((r) => r.data).filter(Boolean)
+    const { data: novos } = await admin.sb.from('relatorios').select('numero').in('id', ids).order('numero')
+    const nums = (novos ?? []).map((r) => r.numero)
+    conferir(
+      '8 criar_relatorio simultâneos: números únicos e em sequência',
+      erros.length === 0 && nums.join() === datas.map((_, i) => antes + i + 1).join(),
+      { erros, nums, antes },
+    )
+    await admin.sb.from('relatorios').delete().in('id', ids)
+
+    // Pela API, a linha só entra depois do arquivo (senão bytes = 0 furaria a cota).
+    const { error: eDoc } = await eng.sb.from('documentos').insert({
+      obra_id: obra.id, nome: 'fantasma.pdf', path: `${aurora}/${obra.id}/docs/${randomUUID()}.pdf`, bytes: 0,
+    })
+    conferir('documento sem arquivo no Storage é recusado', eDoc?.message?.startsWith('Arquivo não encontrado no Storage'), eDoc)
+    const { error: eCapa } = await eng.sb.from('obras').update({ capa_path: `${aurora}/outra/capa/x.webp` }).eq('id', obra.id)
+    conferir('capa fora da pasta da obra é recusada', eCapa?.message === 'A capa tem de estar na pasta da obra', eCapa)
+  }
+
+  // ------------------------------------------ funções internas / anônimo --
+  {
+    const { error: eHist } = await eng.sb.rpc('registrar_historico', {
+      p_empresa: aurora, p_obra: null, p_acao: 'aprovou', p_entidade: 'relatorio', p_entidade_id: null, p_descricao: 'falso',
+    })
+    conferir('registrar_historico (interna) não é chamável pela API', !!eHist, eHist)
+    const { error: eAnonRpc } = await novoCliente().rpc('painel_resumo')
+    conferir('anônimo não chama RPC', !!eAnonRpc, eAnonRpc)
+    const { error: eAnonTab } = await novoCliente().from('empresas').select('id')
+    conferir('anônimo recebe "permission denied" nas tabelas', /permission denied/.test(eAnonTab?.message ?? ''), eAnonTab)
+  }
+
   // ----------------------------------------------- sessão: user/refresh ---
   {
     const { data, error } = await eng.sb.auth.getUser()

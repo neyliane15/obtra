@@ -4,7 +4,10 @@
 -- Toda função que lê tabela protegida é SECURITY DEFINER com search_path fixo:
 -- assim a política de `perfis` pode perguntar "quem é você" sem cair na própria
 -- RLS de `perfis` (recursão infinita), e ninguém sequestra a função criando um
--- objeto homônimo num schema que venha antes no search_path.
+-- objeto homônimo num schema que venha antes no search_path. O `pg_temp` vai
+-- explícito e POR ÚLTIMO: se ficar de fora, o Postgres procura tabelas no
+-- schema temporário da sessão ANTES do `public` — um `create temp table
+-- perfis(...)` faria `eh_master()` responder o que o usuário quisesse.
 --
 -- Bandeira interna `obtra.interno`: as RPCs deste sistema (security definer,
 -- que já conferiram permissão) ligam essa configuração da transação para que os
@@ -16,7 +19,7 @@
 create or replace function public.uuid_seguro(p_texto text)
 returns uuid
 language plpgsql immutable
-set search_path = public
+set search_path = public, pg_temp
 as $$
 begin
   return p_texto::uuid;
@@ -27,7 +30,7 @@ end $$;
 create or replace function public.obtra_interno()
 returns boolean
 language sql stable
-set search_path = public
+set search_path = public, pg_temp
 as $$
   select coalesce(current_setting('obtra.interno', true), '') = 'on'
 $$;
@@ -36,7 +39,7 @@ $$;
 create or replace function public.eh_master()
 returns boolean
 language sql stable security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
   select exists (
     select 1 from perfis
@@ -47,7 +50,7 @@ $$;
 create or replace function public.meu_papel()
 returns text
 language sql stable security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
   select papel from perfis where id = auth.uid() and ativo
 $$;
@@ -55,7 +58,7 @@ $$;
 create or replace function public.minha_empresa()
 returns uuid
 language sql stable security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
   select empresa_id from perfis where id = auth.uid() and ativo
 $$;
@@ -64,7 +67,7 @@ $$;
 create or replace function public.eh_equipe(empresa uuid)
 returns boolean
 language sql stable security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
   select exists (
     select 1 from perfis p
@@ -85,7 +88,7 @@ $$;
 create or replace function public.eh_admin(empresa uuid)
 returns boolean
 language sql stable security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
   select exists (
     select 1 from perfis p
@@ -106,7 +109,7 @@ $$;
 create or replace function public.eh_cliente_da_obra(obra uuid)
 returns boolean
 language sql stable security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
   select exists (
     select 1
@@ -123,10 +126,77 @@ as $$
   )
 $$;
 
+-- Versões "sem argumento" das de cima, para as políticas: numa política,
+-- `empresa_id = (select public.empresa_da_equipe())` é calculado UMA vez por
+-- consulta (initPlan) e deixa o planejador usar o índice de empresa_id; já
+-- `public.eh_equipe(empresa_id)` roda uma subconsulta por linha.
+-- Empresa (ativa) em que o usuário é admin/colaborador ativo; null se não for.
+create or replace function public.empresa_da_equipe()
+returns uuid
+language sql stable security definer
+set search_path = public, pg_temp
+as $$
+  select p.empresa_id
+    from perfis p
+    join empresas e on e.id = p.empresa_id
+   where p.id = auth.uid()
+     and p.ativo
+     and p.papel in ('admin', 'colaborador')
+     and e.ativa
+$$;
+
+-- Empresa (ativa) em que o usuário é admin ativo; null se não for.
+create or replace function public.empresa_do_admin()
+returns uuid
+language sql stable security definer
+set search_path = public, pg_temp
+as $$
+  select p.empresa_id
+    from perfis p
+    join empresas e on e.id = p.empresa_id
+   where p.id = auth.uid()
+     and p.ativo
+     and p.papel = 'admin'
+     and e.ativa
+$$;
+
+-- Empresa (ativa) em que o usuário é cliente ativo; null se não for.
+create or replace function public.empresa_do_cliente()
+returns uuid
+language sql stable security definer
+set search_path = public, pg_temp
+as $$
+  select p.empresa_id
+    from perfis p
+    join empresas e on e.id = p.empresa_id
+   where p.id = auth.uid()
+     and p.ativo
+     and p.papel = 'cliente'
+     and e.ativa
+$$;
+
+-- Obras que o cliente ativo enxerga (mesmas regras de eh_cliente_da_obra).
+create or replace function public.obras_do_cliente()
+returns setof uuid
+language sql stable security definer
+set search_path = public, pg_temp
+as $$
+  select oc.obra_id
+    from perfis p
+    join obra_clientes oc on oc.cliente_id = p.id
+    join obras o          on o.id = oc.obra_id
+    join empresas e       on e.id = o.empresa_id
+   where p.id = auth.uid()
+     and p.ativo
+     and p.papel = 'cliente'
+     and p.empresa_id = o.empresa_id
+     and e.ativa
+$$;
+
 create or replace function public.empresa_da_obra(obra uuid)
 returns uuid
 language sql stable security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
   select empresa_id from obras where id = obra
 $$;
@@ -134,7 +204,7 @@ $$;
 create or replace function public.pode_ver_obra(obra uuid)
 returns boolean
 language sql stable security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
   select public.eh_master()
       or exists (select 1 from obras o where o.id = obra and public.eh_equipe(o.empresa_id))
@@ -145,7 +215,7 @@ $$;
 create or replace function public.pode_ver_relatorio(relatorio uuid)
 returns boolean
 language sql stable security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
   select exists (
     select 1 from relatorios r
@@ -159,7 +229,7 @@ $$;
 create or replace function public.pode_editar_relatorio(relatorio uuid)
 returns boolean
 language sql stable security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
   select exists (
     select 1 from relatorios r
@@ -172,7 +242,7 @@ $$;
 create or replace function public.empresa_do_relatorio(relatorio uuid)
 returns uuid
 language sql stable security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
   select empresa_id from relatorios where id = relatorio
 $$;
@@ -189,7 +259,7 @@ $$;
 create or replace function public.ao_criar_usuario()
 returns trigger
 language plpgsql security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_meta    jsonb := coalesce(new.raw_user_meta_data, '{}'::jsonb);
@@ -235,7 +305,7 @@ create trigger obtra_ao_criar_usuario
 create or replace function public.ao_mudar_email_usuario()
 returns trigger
 language plpgsql security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 begin
   if new.email is distinct from old.email then
@@ -255,7 +325,7 @@ create trigger obtra_ao_mudar_email_usuario
 create or replace function public.perfis_proteger()
 returns trigger
 language plpgsql security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 begin
   -- SQL Editor / service_role (sem JWT) e as RPCs do sistema passam.
@@ -294,7 +364,7 @@ create trigger obtra_perfis_proteger
 create or replace function public.empresas_proteger()
 returns trigger
 language plpgsql security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 begin
   if auth.uid() is null or public.obtra_interno() then
@@ -337,7 +407,7 @@ create trigger obtra_empresas_proteger
 create or replace function public.obras_antes()
 returns trigger
 language plpgsql security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 begin
   if tg_op = 'INSERT' then
@@ -356,6 +426,18 @@ begin
       new.criado_em := old.criado_em;
     end if;
   end if;
+  -- A capa fica na pasta da própria obra: o cliente da obra pode ler a capa
+  -- (storage_pode_ler), então apontar a capa para outro arquivo da empresa
+  -- (foto de RDO não aprovado, documento interno) vazaria esse arquivo.
+  if auth.uid() is not null and not public.obtra_interno()
+     and (tg_op = 'INSERT'
+          or new.capa_path is distinct from old.capa_path
+          or new.capa_thumb_path is distinct from old.capa_thumb_path)
+     and exists (select 1 from unnest(array[new.capa_path, new.capa_thumb_path]) c
+                  where c is not null
+                    and c not like new.empresa_id::text || '/' || new.id::text || '/capa/%') then
+    raise exception 'A capa tem de estar na pasta da obra' using errcode = '42501';
+  end if;
   new.atualizado_em := now();
   return new;
 end $$;
@@ -369,7 +451,7 @@ create trigger obtra_obras_antes
 create or replace function public.obra_clientes_validar()
 returns trigger
 language plpgsql security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_empresa_obra    uuid;
@@ -396,7 +478,7 @@ create trigger obtra_obra_clientes_validar
 create or replace function public.relatorios_antes()
 returns trigger
 language plpgsql security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_empresa uuid;
@@ -467,7 +549,7 @@ create trigger obtra_relatorios_antes
 create or replace function public.relatorio_filho_antes()
 returns trigger
 language plpgsql
-set search_path = public
+set search_path = public, pg_temp
 as $$
 begin
   if tg_op = 'UPDATE' and new.relatorio_id is distinct from old.relatorio_id then
@@ -494,7 +576,7 @@ end $$;
 create or replace function public.comentarios_antes()
 returns trigger
 language plpgsql
-set search_path = public
+set search_path = public, pg_temp
 as $$
 begin
   if tg_op = 'INSERT' then
@@ -522,7 +604,7 @@ create trigger obtra_comentarios_antes
 create or replace function public.bytes_no_storage(p_caminhos text[])
 returns bigint
 language sql stable security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
   select sum((o.metadata ->> 'size')::bigint)
     from storage.objects o
@@ -534,7 +616,7 @@ $$;
 create or replace function public.arquivos_antes()
 returns trigger
 language plpgsql security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_empresa  uuid;
@@ -581,6 +663,16 @@ begin
         raise exception 'Caminho do arquivo fora da pasta da obra' using errcode = '42501';
       end if;
     end if;
+    -- Com JWT (API), os arquivos TÊM de estar no Storage antes da linha:
+    -- senão bastaria registrar `bytes = 0` e subir o arquivo depois para
+    -- furar a cota. Sem JWT (SQL Editor/carga) vale o número informado.
+    if auth.uid() is not null
+       and (select count(*) from storage.objects o
+             where o.bucket_id = 'obtra' and o.name = any (v_caminhos))
+           < cardinality(array(select distinct c from unnest(v_caminhos) c)) then
+      raise exception 'Arquivo não encontrado no Storage: envie o arquivo antes de registrá-lo'
+        using errcode = '23503';
+    end if;
     v_real := public.bytes_no_storage(v_caminhos);
     if v_real is not null then
       new.bytes := v_real;
@@ -606,7 +698,7 @@ create trigger obtra_documentos_antes
 create or replace function public.arquivos_cota()
 returns trigger
 language plpgsql security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_usado  bigint;
@@ -649,7 +741,7 @@ create trigger obtra_documentos_cota
 create or replace function public.cadastros_antes()
 returns trigger
 language plpgsql security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 begin
   if tg_op = 'INSERT' then
@@ -689,7 +781,7 @@ end $$;
 create or replace function public.relatorio_filho_cadastro()
 returns trigger
 language plpgsql security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_empresa uuid;
@@ -756,7 +848,7 @@ create or replace function public.registrar_historico(
 )
 returns void
 language plpgsql security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_uid  uuid := auth.uid();
@@ -776,7 +868,7 @@ end $$;
 create or replace function public.historico_gatilho()
 returns trigger
 language plpgsql security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_obra_nome text;

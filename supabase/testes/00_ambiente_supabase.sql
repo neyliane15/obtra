@@ -170,3 +170,11 @@ end $$;
 grant usage on schema auth, storage to anon, authenticated, service_role;
 grant execute on function auth.uid(), auth.role(), auth.jwt() to anon, authenticated, service_role;
 grant all on storage.buckets, storage.objects to anon, authenticated, service_role;
+
+-- Privilégios padrão do Supabase em `public`: TODA tabela, função e sequência
+-- nova nasce com ALL para anon, authenticated e service_role. As migrações
+-- têm de desfazer isso (0006); sem este trecho a suíte não enxergaria, por
+-- exemplo, uma função interna executável pelo `authenticated`.
+alter default privileges in schema public grant all on tables    to anon, authenticated, service_role;
+alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;

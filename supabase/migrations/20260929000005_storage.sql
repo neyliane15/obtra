@@ -24,7 +24,7 @@ on conflict (id) do update
 create or replace function public.storage_pode_ler(p_nome text)
 returns boolean
 language plpgsql stable security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_partes  text[] := string_to_array(p_nome, '/');
@@ -53,8 +53,8 @@ begin
                   where o.id = v_obra and p_nome in (o.capa_path, o.capa_thumb_path))
       or exists (select 1 from fotos f
                    left join relatorios r on r.id = f.relatorio_id
-                  where f.obra_id = v_obra
-                    and p_nome in (f.path, f.thumb_path)
+                  where (f.path = p_nome or f.thumb_path = p_nome)
+                    and f.obra_id = v_obra
                     and (f.relatorio_id is null or r.status = 'aprovado'))
       or exists (select 1 from documentos d
                   where d.obra_id = v_obra and d.path = p_nome and d.visivel_cliente);
@@ -65,7 +65,7 @@ end $$;
 create or replace function public.storage_pode_escrever(p_nome text)
 returns boolean
 language plpgsql stable security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_partes  text[] := string_to_array(p_nome, '/');
@@ -85,18 +85,57 @@ begin
                   where id = public.uuid_seguro(v_partes[2]) and empresa_id = v_empresa);
 end $$;
 
--- Empresa que já estourou a cota não sobe mais arquivo nenhum (nem órfão).
+-- Trocar/apagar arquivo: além de poder escrever na pasta, o arquivo não pode
+-- ser foto de RDO aprovado — a não ser para admin/master. Sem isso o
+-- colaborador, que não mexe na linha da foto aprovada, apagaria o arquivo dela.
+create or replace function public.storage_pode_alterar(p_nome text)
+returns boolean
+language plpgsql stable security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if not public.storage_pode_escrever(p_nome) then
+    return false;
+  end if;
+  if public.eh_admin(public.uuid_seguro(split_part(p_nome, '/', 1))) then
+    return true;
+  end if;
+  return not exists (select 1 from fotos f
+                       join relatorios r on r.id = f.relatorio_id
+                      where (f.path = p_nome or f.thumb_path = p_nome)
+                        and r.status = 'aprovado');
+end $$;
+
+-- Empresa que já estourou a cota não sobe mais arquivo nenhum. O uso é o
+-- MAIOR entre o contabilizado (fotos/documentos) e o que de fato está no
+-- bucket sob a pasta da empresa: sem isso, arquivos enviados e nunca
+-- registrados (órfãos) ocupariam espaço sem contar na cota.
 create or replace function public.storage_tem_espaco(p_nome text)
 returns boolean
-language sql stable security definer
-set search_path = public
+language plpgsql stable security definer
+set search_path = public, pg_temp
 as $$
-  select coalesce((
-    select e.armazenamento_usado_bytes < e.limite_armazenamento_mb::bigint * 1024 * 1024
-      from empresas e
-     where e.id = public.uuid_seguro(split_part(p_nome, '/', 1))
-  ), public.eh_master())
-$$;
+declare
+  v_empresa uuid := public.uuid_seguro(split_part(p_nome, '/', 1));
+  v_usado   bigint;
+  v_limite  bigint;
+  v_bucket  bigint;
+begin
+  select e.armazenamento_usado_bytes, e.limite_armazenamento_mb::bigint * 1024 * 1024
+    into v_usado, v_limite
+    from empresas e
+   where e.id = v_empresa;
+  if not found then
+    return public.eh_master();
+  end if;
+  select coalesce(sum(case when (o.metadata ->> 'size') ~ '^[0-9]+$'
+                           then (o.metadata ->> 'size')::bigint else 0 end), 0)
+    into v_bucket
+    from storage.objects o
+   where o.bucket_id = 'obtra'
+     and o.name like v_empresa::text || '/%';
+  return greatest(v_usado, v_bucket) < v_limite;
+end $$;
 
 drop policy if exists obtra_ler on storage.objects;
 create policy obtra_ler on storage.objects for select to authenticated
@@ -108,10 +147,12 @@ create policy obtra_inserir on storage.objects for insert to authenticated
               and public.storage_tem_espaco(name));
 
 drop policy if exists obtra_atualizar on storage.objects;
+-- (upsert de arquivo existente é UPDATE: também passa pela cota)
 create policy obtra_atualizar on storage.objects for update to authenticated
-  using (bucket_id = 'obtra' and public.storage_pode_escrever(name))
-  with check (bucket_id = 'obtra' and public.storage_pode_escrever(name));
+  using (bucket_id = 'obtra' and public.storage_pode_alterar(name))
+  with check (bucket_id = 'obtra' and public.storage_pode_alterar(name)
+              and public.storage_tem_espaco(name));
 
 drop policy if exists obtra_excluir on storage.objects;
 create policy obtra_excluir on storage.objects for delete to authenticated
-  using (bucket_id = 'obtra' and public.storage_pode_escrever(name));
+  using (bucket_id = 'obtra' and public.storage_pode_alterar(name));

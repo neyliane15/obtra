@@ -140,7 +140,7 @@ end $$;
 create or replace function public.pode_administrar_usuario(p_usuario uuid)
 returns boolean
 language plpgsql stable security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_alvo perfis%rowtype;

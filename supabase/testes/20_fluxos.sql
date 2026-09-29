@@ -167,11 +167,18 @@ begin
   perform teste.conferir('excluir a foto devolve o espaço',
     (select armazenamento_usado_bytes from empresas where id = A) = antes);
 
-  -- documento também conta
+  -- pela API, a linha só entra depois do arquivo (senão bytes = 0 furaria a cota)
+  perform teste.conferir('pela API, documento sem objeto no Storage é recusado',
+    teste.erro(format($q$insert into documentos (obra_id, nome, path, bytes)
+                        values (%L, 'x.pdf', %L, 0)$q$, O2, pasta || 'docs/memorial.pdf'))
+      like 'Arquivo não encontrado no Storage%');
+  -- documento também conta; sem JWT (SQL Editor/carga) vale o número informado
+  perform teste.sair();
   insert into documentos (obra_id, empresa_id, nome, path, bytes, mime)
   values (O2, A, 'Memorial.pdf', pasta || 'docs/memorial.pdf', 50000, 'application/pdf');
-  perform teste.conferir('documento sem objeto no Storage usa os bytes informados',
+  perform teste.conferir('documento sem objeto no Storage (SQL, sem JWT) usa os bytes informados',
     (select armazenamento_usado_bytes from empresas where id = A) = antes + 50000);
+  perform teste.vestir('t.colab.a@teste.obtra');
   delete from documentos where path = pasta || 'docs/memorial.pdf';
   perform teste.conferir('excluir documento devolve o espaço',
     (select armazenamento_usado_bytes from empresas where id = A) = antes);
@@ -316,6 +323,9 @@ begin
   perform teste.vestir('adm.desc@teste.obtra');
   R := criar_relatorio(O, current_date);
   insert into relatorio_mao_obra (relatorio_id, funcao) values (R, 'Mestre de obras');
+  insert into storage.objects (bucket_id, name, metadata) values
+    ('obtra', E || '/' || O || '/fotos/a.webp',   '{"size": 1000}'),
+    ('obtra', E || '/' || O || '/fotos/a_t.webp', '{"size": 234}');
   insert into fotos (obra_id, empresa_id, relatorio_id, path, thumb_path, bytes)
   values (O, E, R, E || '/' || O || '/fotos/a.webp', E || '/' || O || '/fotos/a_t.webp', 1234);
   perform teste.vestir('t.master@teste.obtra');
@@ -327,4 +337,5 @@ begin
     and not exists (select 1 from relatorios where empresa_id = E)
     and not exists (select 1 from perfis where email = 'adm.desc@teste.obtra'));
   delete from auth.users where email = 'adm.desc@teste.obtra';
+  delete from storage.objects where name like E || '/%';
 end $$;

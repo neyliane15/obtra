@@ -182,15 +182,16 @@ Detalhes que o texto acima não fixava, ou em que o back foi mais estrito por se
 - O master excluir uma empresa apaga perfis/obras/tudo dela; as contas em `auth.users` desses usuários ficam órfãs (sem perfil → não veem nada).
 
 ### Permissões por tabela (além da tabela de papéis)
-- `obras`: inserir/excluir = admin/master; **colaborador edita** (status, capa, observações). `empresa_id` da obra não muda.
+- `obras`: inserir/excluir = admin/master; **colaborador edita** (status, capa, observações). `empresa_id` da obra não muda. `capa_path`/`capa_thumb_path` têm de estar em `{empresa_id}/{obra_id}/capa/` (erro `A capa tem de estar na pasta da obra`) — o cliente lê a capa, então ela não pode apontar para outro arquivo.
 - `relatorios`: excluir = admin/master. Colaborador não grava `status = 'aprovado'` (nem por UPDATE direto) e não edita aprovado (UPDATE volta 0 linhas, sem erro — use as RPCs para ter mensagem). `obra_id`, `empresa_id`, `numero` não mudam. `aprovado_por/aprovado_em` são preenchidos/limpos por gatilho em qualquer caminho.
 - Filhos do RDO: não mudam de `relatorio_id`. `relatorio_comentarios`: o autor edita o próprio; `autor_id` é sempre `auth.uid()` (gatilho).
-- `fotos`/`documentos`: `path` (e `thumb_path`) têm de começar com `{empresa_id}/{obra_id}/`; `bytes` é **sobrescrito pelo tamanho real do Storage** (`metadata.size`) quando o arquivo existe — então **envie os arquivos antes de inserir a linha**. `path`/`bytes`/`obra_id` não mudam depois (para trocar: exclua e envie de novo). Ao excluir foto/documento, apague os arquivos no Storage (`remove`) — o banco não apaga objeto.
+- `fotos`/`documentos`: `path` (e `thumb_path`) têm de começar com `{empresa_id}/{obra_id}/`; `bytes` é **sobrescrito pelo tamanho real do Storage** (`metadata.size`). Pela API, **o arquivo (e a miniatura) TEM de estar no Storage antes do insert** — senão erro `Arquivo não encontrado no Storage: envie o arquivo antes de registrá-lo` (evita registrar `bytes = 0` e subir depois para furar a cota). `path`/`bytes`/`obra_id` não mudam depois (para trocar: exclua e envie de novo). Ao excluir foto/documento, apague os arquivos no Storage (`remove`) — o banco não apaga objeto.
 - Anônimo (sem login) **não tem privilégio em tabela nenhuma** (resposta "permission denied"); a tela de login não deve consultar o banco.
 
 ### Storage (mais estrito que o texto acima)
 - Leitura pelo **cliente**: só os arquivos que ele já enxerga pelas tabelas — `capa_path/capa_thumb_path` das obras dele, `path/thumb_path` de fotos sem RDO ou de RDO aprovado, `path` de documentos `visivel_cliente`, e o logo da empresa. (Sem isso, um `list` na pasta da obra entregaria fotos de RDO não aprovado.) Consequência: para o cliente, `createSignedUrls` devolve erro por item nos arquivos que ele não pode ver.
-- Escrita (equipe): o 2º segmento tem de ser `logo` (só admin/master) ou o id de uma **obra da própria empresa**. Com a cota estourada (`usado >= limite`) o Storage recusa novos envios.
+- Escrita (equipe): o 2º segmento tem de ser `logo` (só admin/master) ou o id de uma **obra da própria empresa**. Com a cota estourada o Storage recusa novos envios **e sobrescritas (upsert)**; o "usado" aqui é o maior entre o contabilizado em fotos/documentos e o que de fato está no bucket sob `{empresa_id}/` (arquivos órfãos contam).
+- Trocar/apagar o **arquivo** de uma foto de RDO aprovado: só admin/master (o colaborador recebe 0 linhas / erro por item no `remove`). Exclua a linha primeiro e depois o arquivo, como o front já faz.
 
 ### Embeds úteis no PostgREST (nomes das FKs)
 - `relatorios`: `criado:perfis!relatorios_criado_por_fkey(nome)`, `aprovador:perfis!relatorios_aprovado_por_fkey(nome)`, `obras(nome)`.
@@ -198,7 +199,9 @@ Detalhes que o texto acima não fixava, ou em que o back foi mais estrito por se
 - Filhos do RDO direto no select: `relatorios?select=*,relatorio_mao_obra(*),relatorio_equipamentos(*),relatorio_atividades(*),relatorio_ocorrencias(*),relatorio_materiais(*),relatorio_notas_compras(*),relatorio_comentarios(*)`.
 
 ### Funções auxiliares extras (security definer, `stable`)
-`eh_admin(empresa)`, `eh_cliente_da_obra(obra)`, `empresa_da_obra(obra)`, `pode_ver_relatorio(rel)`, `pode_editar_relatorio(rel)`, `empresa_do_relatorio(rel)`, `storage_pode_ler(nome)`, `storage_pode_escrever(nome)`, `storage_tem_espaco(nome)`, `uuid_seguro(texto)`.
+`eh_admin(empresa)`, `eh_cliente_da_obra(obra)`, `empresa_da_obra(obra)`, `pode_ver_relatorio(rel)`, `pode_editar_relatorio(rel)`, `empresa_do_relatorio(rel)`, `storage_pode_ler(nome)`, `storage_pode_escrever(nome)`, `storage_pode_alterar(nome)`, `storage_tem_espaco(nome)`, `uuid_seguro(texto)`.
+Para as políticas (calculadas uma vez por consulta): `empresa_da_equipe()`, `empresa_do_admin()`, `empresa_do_cliente()` (uuid ou null) e `obras_do_cliente()` (setof uuid).
+- Só estas funções e as RPCs da tabela são executáveis por `authenticated`; as internas (`registrar_historico`, `bytes_no_storage`, `pode_administrar_usuario`, gatilhos, `tornar_master`) respondem "permission denied" pela API. Toda função `security definer` tem `search_path = public, pg_temp` (o `pg_temp` por último).
 
 ### RPCs — detalhes
 - `criar_relatorio`: "anterior" = o de maior `data` (desempate por `numero`). Com `p_copiar_anterior` copia `responsavel`, `horario_inicio/fim`, `intervalo_inicio/fim`, mão de obra (com `colaborador_id`) e equipamentos (com `equipamento_id`) — **não** copia atividades, ocorrências, materiais, notas. Sem anterior ou sem copiar: `responsavel` = nome do perfil de quem cria (vale também para insert direto com `responsavel` vazio).

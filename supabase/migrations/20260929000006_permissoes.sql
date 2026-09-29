@@ -9,16 +9,25 @@
 
 grant usage on schema public to anon, authenticated, service_role;
 
-revoke all on all tables in schema public from anon;
+-- `authenticated` também perde tudo antes de receber só o CRUD: o padrão do
+-- Supabase inclui TRUNCATE (que ignora a RLS), REFERENCES e TRIGGER.
+revoke all on all tables in schema public from anon, authenticated;
 grant select, insert, update, delete on all tables in schema public to authenticated;
 grant all on all tables in schema public to service_role;
+-- Sequências (a identidade de `historico`): só os gatilhos usam.
+revoke all on all sequences in schema public from anon, authenticated;
+grant usage, select on all sequences in schema public to service_role;
 
 -- Nada de API para a configuração além da leitura (master, pela RLS).
 revoke insert, update, delete on public.configuracao from authenticated;
 -- Histórico: só os gatilhos (security definer) escrevem.
 revoke insert, update, delete, truncate on public.historico from authenticated;
 
--- Funções: começa tirando de todo mundo (PUBLIC e anon), exceto as de extensão.
+-- Funções: começa tirando de todo mundo (PUBLIC, anon E authenticated), exceto
+-- as de extensão, e depois devolve só o que a API usa. O Supabase dá EXECUTE
+-- ao `authenticated` por privilégio padrão em toda função nova de `public`:
+-- sem tirar, qualquer logado chamaria `registrar_historico` (security definer)
+-- e gravaria histórico falso em qualquer empresa.
 do $$
 declare f record;
 begin
@@ -29,7 +38,7 @@ begin
      where n.nspname = 'public'
        and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
   loop
-    execute format('revoke all on function %s from public, anon', f.assinatura);
+    execute format('revoke all on function %s from public, anon, authenticated', f.assinatura);
     execute format('grant execute on function %s to service_role', f.assinatura);
   end loop;
 end $$;
@@ -44,6 +53,10 @@ grant execute on function
   public.eh_equipe(uuid),
   public.eh_admin(uuid),
   public.eh_cliente_da_obra(uuid),
+  public.empresa_da_equipe(),
+  public.empresa_do_admin(),
+  public.empresa_do_cliente(),
+  public.obras_do_cliente(),
   public.empresa_da_obra(uuid),
   public.pode_ver_obra(uuid),
   public.pode_ver_relatorio(uuid),
@@ -51,6 +64,7 @@ grant execute on function
   public.empresa_do_relatorio(uuid),
   public.storage_pode_ler(text),
   public.storage_pode_escrever(text),
+  public.storage_pode_alterar(text),
   public.storage_tem_espaco(text)
 to authenticated;
 

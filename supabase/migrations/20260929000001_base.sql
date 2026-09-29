@@ -297,6 +297,26 @@ create table if not exists public.historico (
 create index if not exists historico_empresa_idx on public.historico (empresa_id, criado_em desc);
 create index if not exists historico_obra_idx on public.historico (obra_id, criado_em desc);
 
+-- ------------------------------------------------- índices de apoio ------
+-- Toda FK ganha índice: sem ele, excluir um perfil/cadastro (on delete set
+-- null) varre a tabela filha inteira. E as colunas que as políticas filtram.
+create index if not exists colaboradores_funcao_idx          on public.colaboradores (funcao_id);
+create index if not exists relatorio_mao_obra_colab_idx      on public.relatorio_mao_obra (colaborador_id);
+create index if not exists relatorio_equipamentos_equip_idx  on public.relatorio_equipamentos (equipamento_id);
+create index if not exists relatorio_materiais_material_idx  on public.relatorio_materiais (material_id);
+create index if not exists relatorio_comentarios_autor_idx   on public.relatorio_comentarios (autor_id);
+create index if not exists relatorios_criado_por_idx         on public.relatorios (criado_por);
+create index if not exists relatorios_aprovado_por_idx       on public.relatorios (aprovado_por);
+create index if not exists relatorios_empresa_status_idx     on public.relatorios (empresa_id, status);
+create index if not exists obras_criado_por_idx              on public.obras (criado_por);
+create index if not exists fotos_criado_por_idx              on public.fotos (criado_por);
+create index if not exists documentos_criado_por_idx         on public.documentos (criado_por);
+create index if not exists perfis_papel_idx                  on public.perfis (papel);
+-- As políticas do bucket procuram o arquivo pelo caminho.
+create index if not exists fotos_path_idx                    on public.fotos (path);
+create index if not exists fotos_thumb_path_idx              on public.fotos (thumb_path);
+create index if not exists documentos_path_idx               on public.documentos (path);
+
 -- RLS em tudo. Sem política = ninguém (a não ser o dono/bypassrls) enxerga.
 alter table public.empresas               enable row level security;
 alter table public.perfis                 enable row level security;
