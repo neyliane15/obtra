@@ -414,6 +414,9 @@ begin
     if auth.uid() is not null then
       new.criado_por := auth.uid();
     end if;
+    -- Responsável: o informado, senão o nome de quem cria.
+    new.responsavel := coalesce(nullif(btrim(new.responsavel), ''),
+                                (select nome from perfis where id = coalesce(auth.uid(), new.criado_por)));
     if new.status = 'aprovado' then
       new.aprovado_por := coalesce(auth.uid(), new.aprovado_por);
       new.aprovado_em  := coalesce(new.aprovado_em, now());
@@ -480,7 +483,7 @@ do $$
 declare t text;
 begin
   foreach t in array array['relatorio_mao_obra', 'relatorio_equipamentos', 'relatorio_atividades',
-                           'relatorio_ocorrencias', 'relatorio_materiais'] loop
+                           'relatorio_ocorrencias', 'relatorio_materiais', 'relatorio_notas_compras'] loop
     execute format('drop trigger if exists obtra_filho_antes on public.%I', t);
     execute format('create trigger obtra_filho_antes before update on public.%I
                     for each row execute function public.relatorio_filho_antes()', t);
@@ -639,3 +642,261 @@ drop trigger if exists obtra_documentos_cota on public.documentos;
 create trigger obtra_documentos_cota
   after insert or delete or update of bytes, empresa_id on public.documentos
   for each row execute function public.arquivos_cota();
+
+-- ====================================================== Adendo 1 ==========
+
+-- ------------------------------------------------- cadastros da empresa ----
+create or replace function public.cadastros_antes()
+returns trigger
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.empresa_id is null then
+      new.empresa_id := public.minha_empresa();
+    end if;
+    if new.empresa_id is null then
+      raise exception 'Informe a empresa do cadastro' using errcode = '23502';
+    end if;
+  elsif auth.uid() is not null and not public.obtra_interno()
+        and new.empresa_id is distinct from old.empresa_id then
+    raise exception 'O cadastro não muda de empresa' using errcode = '42501';
+  end if;
+  if tg_table_name = 'colaboradores' then
+    if new.funcao_id is not null
+       and not exists (select 1 from funcoes where id = new.funcao_id and empresa_id = new.empresa_id) then
+      raise exception 'A função é de outra empresa' using errcode = '23514';
+    end if;
+  end if;
+  return new;
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['funcoes', 'colaboradores', 'materiais', 'equipamentos'] loop
+    execute format('drop trigger if exists obtra_cadastros_antes on public.%I', t);
+    execute format('create trigger obtra_cadastros_antes before insert or update on public.%I
+                    for each row execute function public.cadastros_antes()', t);
+  end loop;
+end $$;
+
+-- Itens do RDO que apontam para o cadastro: o cadastro tem de ser da mesma
+-- empresa do relatório, e os campos de texto vazios são preenchidos a partir
+-- dele (o texto fica gravado no RDO — o cliente, que não vê os cadastros,
+-- continua lendo o nome da função/equipamento/material).
+create or replace function public.relatorio_filho_cadastro()
+returns trigger
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_empresa uuid;
+  v_nome    text;
+  v_aux     text;
+  v_tipo    text;
+  v_terc    text;
+  v_dono    uuid;
+begin
+  select empresa_id into v_empresa from relatorios where id = new.relatorio_id;
+
+  -- Campos de tabelas diferentes: cada ramo só toca os da própria tabela
+  -- (o PL/pgSQL resolve new.<campo> mesmo dentro de um AND já falso).
+  if tg_table_name = 'relatorio_mao_obra' then
+    if new.colaborador_id is not null then
+      select c.empresa_id, c.nome, f.nome, c.tipo, c.empresa_terceira
+        into v_dono, v_nome, v_aux, v_tipo, v_terc
+        from colaboradores c left join funcoes f on f.id = c.funcao_id
+       where c.id = new.colaborador_id;
+      if v_dono is distinct from v_empresa then
+        raise exception 'Colaborador de outra empresa' using errcode = '23514';
+      end if;
+      new.colaborador_nome := coalesce(nullif(btrim(new.colaborador_nome), ''), v_nome);
+      new.funcao := coalesce(nullif(btrim(new.funcao), ''), v_aux, 'Colaborador');
+      if tg_op = 'INSERT' and new.empresa_terceira is null and v_tipo = 'terceirizada' then
+        new.tipo := 'terceirizada';
+        new.empresa_terceira := v_terc;
+      end if;
+    end if;
+  elsif tg_table_name = 'relatorio_equipamentos' then
+    if new.equipamento_id is not null then
+      select empresa_id, nome into v_dono, v_nome from equipamentos where id = new.equipamento_id;
+      if v_dono is distinct from v_empresa then
+        raise exception 'Equipamento de outra empresa' using errcode = '23514';
+      end if;
+      new.nome := coalesce(nullif(btrim(new.nome), ''), v_nome);
+    end if;
+  elsif tg_table_name = 'relatorio_materiais' then
+    if new.material_id is not null then
+      select empresa_id, nome, unidade into v_dono, v_nome, v_aux from materiais where id = new.material_id;
+      if v_dono is distinct from v_empresa then
+        raise exception 'Material de outra empresa' using errcode = '23514';
+      end if;
+      new.descricao := coalesce(nullif(btrim(new.descricao), ''), v_nome);
+      new.unidade := coalesce(nullif(btrim(new.unidade), ''), v_aux);
+    end if;
+  end if;
+  return new;
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['relatorio_mao_obra', 'relatorio_equipamentos', 'relatorio_materiais'] loop
+    execute format('drop trigger if exists obtra_filho_cadastro on public.%I', t);
+    execute format('create trigger obtra_filho_cadastro before insert or update on public.%I
+                    for each row execute function public.relatorio_filho_cadastro()', t);
+  end loop;
+end $$;
+
+-- ------------------------------------------------------------ histórico ----
+create or replace function public.registrar_historico(
+  p_empresa uuid, p_obra uuid, p_acao text, p_entidade text, p_entidade_id uuid, p_descricao text
+)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_uid  uuid := auth.uid();
+  v_nome text;
+begin
+  -- Exclusão em cascata da empresa: nada a registrar (e o histórico dela vai junto).
+  if p_empresa is null or not exists (select 1 from empresas where id = p_empresa) then
+    return;
+  end if;
+  if v_uid is not null then
+    select nome into v_nome from perfis where id = v_uid;
+  end if;
+  insert into historico (empresa_id, obra_id, usuario_id, usuario_nome, acao, entidade, entidade_id, descricao)
+  values (p_empresa, p_obra, v_uid, coalesce(v_nome, 'Sistema'), p_acao, p_entidade, p_entidade_id, p_descricao);
+end $$;
+
+create or replace function public.historico_gatilho()
+returns trigger
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_obra_nome text;
+  v_rotulo    text;
+  v_acao      text;
+  v_obra      uuid;
+begin
+  if tg_table_name = 'obras' then
+    if tg_op = 'INSERT' then
+      perform registrar_historico(new.empresa_id, new.id, 'criou', 'obra', new.id,
+                                  format('Obra "%s" cadastrada', new.nome));
+    elsif tg_op = 'DELETE' then
+      perform registrar_historico(old.empresa_id, old.id, 'excluiu', 'obra', old.id,
+                                  format('Obra "%s" excluída', old.nome));
+    elsif (to_jsonb(new) - 'atualizado_em') <> (to_jsonb(old) - 'atualizado_em') then
+      perform registrar_historico(new.empresa_id, new.id, 'editou', 'obra', new.id,
+        case when new.status <> old.status
+             then format('Obra "%s": status %s → %s', new.nome, old.status, new.status)
+             else format('Obra "%s" editada', new.nome) end);
+    end if;
+
+  elsif tg_table_name = 'relatorios' then
+    v_obra := coalesce(new.obra_id, old.obra_id);
+    select nome into v_obra_nome from obras where id = v_obra;
+    if v_obra_nome is null then
+      return null;                       -- obra excluída em cascata
+    end if;
+    v_rotulo := format('RD-%s · %s', coalesce(new.numero, old.numero), v_obra_nome);
+    if tg_op = 'INSERT' then
+      perform registrar_historico(new.empresa_id, v_obra, 'criou', 'relatorio', new.id,
+                                  format('%s criado (%s)', v_rotulo, to_char(new.data, 'DD/MM/YYYY')));
+    elsif tg_op = 'DELETE' then
+      perform registrar_historico(old.empresa_id, v_obra, 'excluiu', 'relatorio', old.id,
+                                  format('%s excluído', v_rotulo));
+    elsif new.status is distinct from old.status then
+      v_acao := case
+                  when new.status = 'aprovado' then 'aprovou'
+                  when old.status = 'aprovado' then 'reabriu'
+                  when new.status = 'revisar'  then 'enviou_aprovacao'
+                  else 'devolveu'
+                end;
+      perform registrar_historico(new.empresa_id, v_obra, v_acao, 'relatorio', new.id,
+        format('%s %s', v_rotulo, case v_acao
+                                    when 'aprovou' then 'aprovado'
+                                    when 'reabriu' then 'reaberto'
+                                    when 'enviou_aprovacao' then 'enviado para aprovação'
+                                    else 'devolvido para rascunho' end));
+    end if;
+
+  elsif tg_table_name in ('fotos', 'documentos') then
+    v_obra := coalesce(new.obra_id, old.obra_id);
+    select nome into v_obra_nome from obras where id = v_obra;
+    if v_obra_nome is null then
+      return null;
+    end if;
+    if tg_table_name = 'fotos' then
+      if tg_op = 'INSERT' then
+        perform registrar_historico(new.empresa_id, v_obra, 'enviou_foto', 'foto', new.id,
+          format('Foto enviada · %s%s', v_obra_nome, coalesce(' — ' || nullif(new.legenda, ''), '')));
+      else
+        perform registrar_historico(old.empresa_id, v_obra, 'excluiu', 'foto', old.id,
+          format('Foto excluída · %s', v_obra_nome));
+      end if;
+    else
+      if tg_op = 'INSERT' then
+        perform registrar_historico(new.empresa_id, v_obra, 'enviou_documento', 'documento', new.id,
+          format('Documento "%s" enviado · %s', new.nome, v_obra_nome));
+      else
+        perform registrar_historico(old.empresa_id, v_obra, 'excluiu', 'documento', old.id,
+          format('Documento "%s" excluído · %s', old.nome, v_obra_nome));
+      end if;
+    end if;
+
+  elsif tg_table_name = 'perfis' then
+    if tg_op = 'INSERT' and new.empresa_id is not null then
+      perform registrar_historico(new.empresa_id, null, 'criou', 'usuario', new.id,
+                                  format('Usuário "%s" (%s) cadastrado', new.nome, new.papel));
+    elsif tg_op = 'DELETE' and old.empresa_id is not null then
+      perform registrar_historico(old.empresa_id, null, 'excluiu', 'usuario', old.id,
+                                  format('Usuário "%s" excluído', old.nome));
+    end if;
+
+  else  -- cadastros: funcoes, colaboradores, materiais, equipamentos
+    v_rotulo := case tg_table_name
+                  when 'funcoes' then 'Função'
+                  when 'colaboradores' then 'Colaborador'
+                  when 'materiais' then 'Material'
+                  else 'Equipamento' end;
+    if tg_op = 'INSERT' then
+      perform registrar_historico(new.empresa_id, null, 'criou', 'cadastro', new.id,
+                                  format('%s "%s" cadastrado', v_rotulo, new.nome));
+    elsif tg_op = 'DELETE' then
+      perform registrar_historico(old.empresa_id, null, 'excluiu', 'cadastro', old.id,
+                                  format('%s "%s" excluído', v_rotulo, old.nome));
+    end if;
+  end if;
+  return null;
+end $$;
+
+drop trigger if exists obtra_historico on public.obras;
+create trigger obtra_historico after insert or update or delete on public.obras
+  for each row execute function public.historico_gatilho();
+drop trigger if exists obtra_historico on public.relatorios;
+create trigger obtra_historico after insert or delete or update of status on public.relatorios
+  for each row execute function public.historico_gatilho();
+drop trigger if exists obtra_historico on public.fotos;
+create trigger obtra_historico after insert or delete on public.fotos
+  for each row execute function public.historico_gatilho();
+drop trigger if exists obtra_historico on public.documentos;
+create trigger obtra_historico after insert or delete on public.documentos
+  for each row execute function public.historico_gatilho();
+drop trigger if exists obtra_historico on public.perfis;
+create trigger obtra_historico after insert or delete on public.perfis
+  for each row execute function public.historico_gatilho();
+do $$
+declare t text;
+begin
+  foreach t in array array['funcoes', 'colaboradores', 'materiais', 'equipamentos'] loop
+    execute format('drop trigger if exists obtra_historico on public.%I', t);
+    execute format('create trigger obtra_historico after insert or delete on public.%I
+                    for each row execute function public.historico_gatilho()', t);
+  end loop;
+end $$;

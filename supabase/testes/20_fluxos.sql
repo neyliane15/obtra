@@ -51,8 +51,8 @@ begin
   values (v1, 'Concretagem da laje do 2º pavimento', 'em_andamento', 40);
   insert into relatorio_ocorrencias (relatorio_id, descricao, tipo)
   values (v1, 'Chuva forte à tarde interrompeu a concretagem', 'clima');
-  insert into relatorio_materiais (relatorio_id, descricao, quantidade, tipo)
-  values (v1, 'Concreto usinado fck 30', '12 m³', 'recebido');
+  insert into relatorio_materiais (relatorio_id, descricao, quantidade, unidade, tipo)
+  values (v1, 'Concreto usinado fck 30', 12, 'm³', 'recebido');
   perform teste.conferir('check de clima barra valor fora da lista',
     teste.erro(format($q$update relatorios set clima_noite = 'nevando' where id = %L$q$, v1)) is not null);
   perform teste.conferir('check de progresso barra progresso acima de 100',

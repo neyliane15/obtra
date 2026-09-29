@@ -249,7 +249,8 @@ set search_path = public, pg_temp
 as $$
 declare
   v_empresa  uuid;
-  v_anterior uuid;
+  v_anterior relatorios%rowtype;
+  v_copiar   boolean := coalesce(p_copiar_anterior, true);
   v_id       uuid;
 begin
   select empresa_id into v_empresa from obras where id = p_obra;
@@ -260,23 +261,34 @@ begin
     raise exception 'Informe a data do relatório' using errcode = '22023';
   end if;
 
-  select id into v_anterior
+  select * into v_anterior
     from relatorios
    where obra_id = p_obra
    order by data desc, numero desc
    limit 1;
+  if not found then
+    v_copiar := false;
+  end if;
 
-  insert into relatorios (obra_id, empresa_id, numero, data)
-  values (p_obra, v_empresa, 0, p_data)       -- empresa e número: gatilho
+  -- empresa e número: gatilho. Responsável nulo → gatilho usa o nome de quem cria.
+  insert into relatorios (obra_id, empresa_id, numero, data, responsavel,
+                          horario_inicio, horario_fim, intervalo_inicio, intervalo_fim)
+  values (p_obra, v_empresa, 0, p_data,
+          case when v_copiar then v_anterior.responsavel end,
+          case when v_copiar then v_anterior.horario_inicio end,
+          case when v_copiar then v_anterior.horario_fim end,
+          case when v_copiar then v_anterior.intervalo_inicio end,
+          case when v_copiar then v_anterior.intervalo_fim end)
   returning id into v_id;
 
-  if coalesce(p_copiar_anterior, true) and v_anterior is not null then
-    insert into relatorio_mao_obra (relatorio_id, ordem, funcao, quantidade, tipo, empresa_terceira)
-    select v_id, ordem, funcao, quantidade, tipo, empresa_terceira
-      from relatorio_mao_obra where relatorio_id = v_anterior;
-    insert into relatorio_equipamentos (relatorio_id, ordem, nome, quantidade)
-    select v_id, ordem, nome, quantidade
-      from relatorio_equipamentos where relatorio_id = v_anterior;
+  if v_copiar then
+    insert into relatorio_mao_obra (relatorio_id, ordem, colaborador_id, colaborador_nome, funcao,
+                                    quantidade, tipo, empresa_terceira)
+    select v_id, ordem, colaborador_id, colaborador_nome, funcao, quantidade, tipo, empresa_terceira
+      from relatorio_mao_obra where relatorio_id = v_anterior.id;
+    insert into relatorio_equipamentos (relatorio_id, ordem, equipamento_id, nome, quantidade)
+    select v_id, ordem, equipamento_id, nome, quantidade
+      from relatorio_equipamentos where relatorio_id = v_anterior.id;
   end if;
   return v_id;
 end $$;
@@ -335,6 +347,7 @@ begin
     'obras_total',      (select count(*) from obras),
     'obras_andamento',  (select count(*) from obras where status = 'em_andamento'),
     'relatorios_total', (select count(*) from relatorios),
+    'relatorios_pendentes', (select count(*) from relatorios where status = 'revisar'),
     'relatorios_mes',   (select count(*) from relatorios
                           where data >= date_trunc('month', current_date)::date
                             and data <  (date_trunc('month', current_date) + interval '1 month')::date),

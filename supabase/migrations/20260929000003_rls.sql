@@ -135,7 +135,7 @@ do $$
 declare t text;
 begin
   foreach t in array array['relatorio_mao_obra', 'relatorio_equipamentos', 'relatorio_atividades',
-                           'relatorio_ocorrencias', 'relatorio_materiais'] loop
+                           'relatorio_ocorrencias', 'relatorio_materiais', 'relatorio_notas_compras'] loop
     execute format('drop policy if exists %I on public.%I', t || '_ler', t);
     execute format('create policy %I on public.%I for select to authenticated
                       using (public.pode_ver_relatorio(relatorio_id))', t || '_ler', t);
@@ -232,4 +232,35 @@ create policy documentos_atualizar on public.documentos for update to authentica
 
 drop policy if exists documentos_excluir on public.documentos;
 create policy documentos_excluir on public.documentos for delete to authenticated
+  using (public.eh_equipe(empresa_id));
+
+-- ------------------------------------------ cadastros da empresa (Adendo 1) -
+-- Equipe lê, cria e edita; admin/master excluem; cliente não vê.
+do $$
+declare t text;
+begin
+  foreach t in array array['funcoes', 'colaboradores', 'materiais', 'equipamentos'] loop
+    execute format('drop policy if exists %I on public.%I', t || '_ler', t);
+    execute format('create policy %I on public.%I for select to authenticated
+                      using (public.eh_equipe(empresa_id))', t || '_ler', t);
+
+    execute format('drop policy if exists %I on public.%I', t || '_inserir', t);
+    execute format('create policy %I on public.%I for insert to authenticated
+                      with check (public.eh_equipe(empresa_id))', t || '_inserir', t);
+
+    execute format('drop policy if exists %I on public.%I', t || '_atualizar', t);
+    execute format('create policy %I on public.%I for update to authenticated
+                      using (public.eh_equipe(empresa_id))
+                      with check (public.eh_equipe(empresa_id))', t || '_atualizar', t);
+
+    execute format('drop policy if exists %I on public.%I', t || '_excluir', t);
+    execute format('create policy %I on public.%I for delete to authenticated
+                      using (public.eh_admin(empresa_id))', t || '_excluir', t);
+  end loop;
+end $$;
+
+-- ------------------------------------------------------------ histórico ----
+-- Só leitura (equipe da empresa e master). Escrita: apenas os gatilhos.
+drop policy if exists historico_ler on public.historico;
+create policy historico_ler on public.historico for select to authenticated
   using (public.eh_equipe(empresa_id));

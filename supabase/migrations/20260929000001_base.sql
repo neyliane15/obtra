@@ -84,6 +84,51 @@ create table if not exists public.obra_clientes (
 );
 create index if not exists obra_clientes_cliente_idx on public.obra_clientes (cliente_id);
 
+-- ------------------------------------------ cadastros da empresa (Adendo 1) -
+-- empresa_id: se vier nulo, o gatilho preenche com a empresa de quem insere.
+create table if not exists public.funcoes (
+  id         uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  nome       text not null check (length(btrim(nome)) > 0),
+  ativo      boolean not null default true,
+  criado_em  timestamptz not null default now(),
+  constraint funcoes_empresa_nome_key unique (empresa_id, nome)
+);
+
+create table if not exists public.colaboradores (
+  id               uuid primary key default gen_random_uuid(),
+  empresa_id       uuid not null references public.empresas (id) on delete cascade,
+  nome             text not null check (length(btrim(nome)) > 0),
+  funcao_id        uuid references public.funcoes (id) on delete set null,
+  tipo             text not null default 'propria' check (tipo in ('propria', 'terceirizada')),
+  empresa_terceira text,
+  telefone         text,
+  documento        text,
+  ativo            boolean not null default true,
+  criado_em        timestamptz not null default now()
+);
+create index if not exists colaboradores_empresa_idx on public.colaboradores (empresa_id, nome);
+
+create table if not exists public.materiais (
+  id         uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  nome       text not null check (length(btrim(nome)) > 0),
+  unidade    text,
+  ativo      boolean not null default true,
+  criado_em  timestamptz not null default now(),
+  constraint materiais_empresa_nome_key unique (empresa_id, nome)
+);
+
+create table if not exists public.equipamentos (
+  id             uuid primary key default gen_random_uuid(),
+  empresa_id     uuid not null references public.empresas (id) on delete cascade,
+  nome           text not null check (length(btrim(nome)) > 0),
+  identificacao  text,
+  ativo          boolean not null default true,
+  criado_em      timestamptz not null default now(),
+  constraint equipamentos_empresa_nome_key unique (empresa_id, nome)
+);
+
 -- ---------------------------------------------------------- relatorios -----
 create table if not exists public.relatorios (
   id              uuid primary key default gen_random_uuid(),
@@ -93,8 +138,11 @@ create table if not exists public.relatorios (
   data            date not null,
   status          text not null default 'preenchendo'
                   check (status in ('preenchendo', 'revisar', 'aprovado')),
+  responsavel     text,
   horario_inicio  time,
   horario_fim     time,
+  intervalo_inicio time,
+  intervalo_fim   time,
   clima_manha     text check (clima_manha in ('claro', 'nublado', 'chuvoso')),
   clima_tarde     text check (clima_tarde in ('claro', 'nublado', 'chuvoso')),
   clima_noite     text check (clima_noite in ('claro', 'nublado', 'chuvoso')),
@@ -118,6 +166,8 @@ create table if not exists public.relatorio_mao_obra (
   id               uuid primary key default gen_random_uuid(),
   relatorio_id     uuid not null references public.relatorios (id) on delete cascade,
   ordem            int not null default 0,
+  colaborador_id   uuid references public.colaboradores (id) on delete set null,
+  colaborador_nome text,
   funcao           text not null,
   quantidade       int not null default 1 check (quantidade > 0),
   tipo             text not null default 'propria' check (tipo in ('propria', 'terceirizada')),
@@ -129,9 +179,10 @@ create index if not exists relatorio_mao_obra_rel_idx on public.relatorio_mao_ob
 create table if not exists public.relatorio_equipamentos (
   id           uuid primary key default gen_random_uuid(),
   relatorio_id uuid not null references public.relatorios (id) on delete cascade,
-  ordem        int not null default 0,
-  nome         text not null,
-  quantidade   int not null default 1 check (quantidade > 0),
+  ordem          int not null default 0,
+  equipamento_id uuid references public.equipamentos (id) on delete set null,
+  nome           text not null,
+  quantidade     int not null default 1 check (quantidade > 0),
   criado_em    timestamptz not null default now()
 );
 create index if not exists relatorio_equipamentos_rel_idx on public.relatorio_equipamentos (relatorio_id);
@@ -163,12 +214,26 @@ create table if not exists public.relatorio_materiais (
   id           uuid primary key default gen_random_uuid(),
   relatorio_id uuid not null references public.relatorios (id) on delete cascade,
   ordem        int not null default 0,
+  material_id  uuid references public.materiais (id) on delete set null,
   descricao    text not null,
-  quantidade   text,
+  quantidade   numeric(12, 2) check (quantidade is null or quantidade >= 0),
+  unidade      text,
   tipo         text not null default 'recebido' check (tipo in ('recebido', 'utilizado')),
   criado_em    timestamptz not null default now()
 );
 create index if not exists relatorio_materiais_rel_idx on public.relatorio_materiais (relatorio_id);
+
+create table if not exists public.relatorio_notas_compras (
+  id           uuid primary key default gen_random_uuid(),
+  relatorio_id uuid not null references public.relatorios (id) on delete cascade,
+  ordem        int not null default 0,
+  fornecedor   text,
+  numero_nota  text,
+  valor        numeric(12, 2),
+  descricao    text,
+  criado_em    timestamptz not null default now()
+);
+create index if not exists relatorio_notas_compras_rel_idx on public.relatorio_notas_compras (relatorio_id);
 
 create table if not exists public.relatorio_comentarios (
   id           uuid primary key default gen_random_uuid(),
@@ -214,6 +279,24 @@ create table if not exists public.documentos (
 create index if not exists documentos_obra_idx on public.documentos (obra_id, criado_em desc);
 create index if not exists documentos_empresa_idx on public.documentos (empresa_id);
 
+-- ------------------------------------------------------------ historico ----
+-- Alimentada só por gatilhos. obra_id/usuario_id sem FK de propósito: o
+-- registro de "excluiu a obra" tem de sobreviver à obra excluída.
+create table if not exists public.historico (
+  id           bigint generated always as identity primary key,
+  empresa_id   uuid not null references public.empresas (id) on delete cascade,
+  obra_id      uuid,
+  usuario_id   uuid,
+  usuario_nome text,
+  acao         text not null,
+  entidade     text not null,
+  entidade_id  uuid,
+  descricao    text,
+  criado_em    timestamptz not null default now()
+);
+create index if not exists historico_empresa_idx on public.historico (empresa_id, criado_em desc);
+create index if not exists historico_obra_idx on public.historico (obra_id, criado_em desc);
+
 -- RLS em tudo. Sem política = ninguém (a não ser o dono/bypassrls) enxerga.
 alter table public.empresas               enable row level security;
 alter table public.perfis                 enable row level security;
@@ -227,5 +310,11 @@ alter table public.relatorio_atividades   enable row level security;
 alter table public.relatorio_ocorrencias  enable row level security;
 alter table public.relatorio_materiais    enable row level security;
 alter table public.relatorio_comentarios  enable row level security;
+alter table public.relatorio_notas_compras enable row level security;
+alter table public.funcoes                enable row level security;
+alter table public.colaboradores          enable row level security;
+alter table public.materiais              enable row level security;
+alter table public.equipamentos           enable row level security;
+alter table public.historico              enable row level security;
 alter table public.fotos                  enable row level security;
 alter table public.documentos             enable row level security;

@@ -15,6 +15,8 @@ grant all on all tables in schema public to service_role;
 
 -- Nada de API para a configuração além da leitura (master, pela RLS).
 revoke insert, update, delete on public.configuracao from authenticated;
+-- Histórico: só os gatilhos (security definer) escrevem.
+revoke insert, update, delete, truncate on public.historico from authenticated;
 
 -- Funções: começa tirando de todo mundo (PUBLIC e anon), exceto as de extensão.
 do $$

@@ -99,11 +99,38 @@ async function principal() {
   conferir('cliente não enxerga relatório não aprovado nem pelo id', naoAprovados.length >= 2 && espiada.length === 0, { naoAprovados, espiada })
 
   // ----------------------------------------------------- RPC de RDO ------
-  const { data: ultimo } = await eng.sb.from('relatorios').select('numero').eq('obra_id', vista.id).order('numero', { ascending: false }).limit(1).single()
+  const { data: ultimo } = await eng.sb.from('relatorios').select('numero, responsavel, horario_inicio, intervalo_inicio').eq('obra_id', vista.id).order('data', { ascending: false }).order('numero', { ascending: false }).limit(1).single()
   const { data: novoRdo, error: eRdo } = await eng.sb.rpc('criar_relatorio', { p_obra: vista.id, p_data: new Date().toISOString().slice(0, 10) })
   conferir('engenheiro cria RDO via criar_relatorio', !eRdo && typeof novoRdo === 'string', eRdo)
   const { data: rdo } = await eng.sb.from('relatorios').select('numero, status, relatorio_mao_obra(id)').eq('id', novoRdo).single()
   conferir('RDO novo tem o próximo número e copiou a mão de obra', rdo?.numero === ultimo.numero + 1 && rdo.relatorio_mao_obra.length > 0, rdo)
+  {
+    const { data: cab } = await eng.sb.from('relatorios').select('responsavel, horario_inicio, intervalo_inicio').eq('id', novoRdo).single()
+    conferir('RDO novo copiou responsável e horários (com intervalo) do anterior', cab?.responsavel === ultimo.responsavel && cab?.horario_inicio === ultimo.horario_inicio && cab?.intervalo_inicio === ultimo.intervalo_inicio, { cab, ultimo })
+  }
+
+  // ---------------------------------------------- cadastros (Adendo 1) ---
+  {
+    const { data: funcoes } = await eng.sb.from('funcoes').select('id, nome').order('nome')
+    conferir('engenheiro lê as funções da Aurora', funcoes?.length >= 10 && funcoes.some((f) => f.nome === 'Pedreiro'), funcoes?.length)
+    const { data: fn, error: eF } = await eng.sb.from('funcoes').insert({ nome: `Gesseiro ${Date.now()}` }).select().single()
+    conferir('engenheiro cadastra função "na hora" (empresa preenchida sozinha)', !eF && fn?.empresa_id === aurora, eF ?? fn)
+    const { data: col, error: eC } = await eng.sb.from('colaboradores').insert({ nome: 'Cícero Gomes', funcao_id: fn.id }).select().single()
+    conferir('engenheiro cadastra colaborador', !eC && !!col, eC)
+    const { data: item, error: eI } = await eng.sb.from('relatorio_mao_obra').insert({ relatorio_id: novoRdo, colaborador_id: col.id, funcao: '', quantidade: 1 }).select().single()
+    conferir('linha de mão de obra pelo cadastro: função e nome vêm do cadastro', !eI && item?.funcao === fn.nome && item?.colaborador_nome === 'Cícero Gomes', eI ?? item)
+    const { data: mat } = await eng.sb.from('materiais').select('id, unidade').eq('nome', 'Cimento CP-II 50 kg').single()
+    const { data: im, error: eM } = await eng.sb.from('relatorio_materiais').insert({ relatorio_id: novoRdo, material_id: mat.id, descricao: '', quantidade: 12.5, tipo: 'recebido' }).select().single()
+    conferir('material pelo cadastro: unidade herdada, quantidade numérica', !eM && im?.unidade === 'sc' && Number(im?.quantidade) === 12.5, eM ?? im)
+    const { error: eN } = await eng.sb.from('relatorio_notas_compras').insert({ relatorio_id: novoRdo, fornecedor: 'Depósito São Jorge', numero_nota: 'NF-e 55.001', valor: 512.5, descricao: 'Cimento' })
+    conferir('engenheiro registra nota de compra', !eN, eN)
+    const { error: eDel } = await eng.sb.from('colaboradores').delete().eq('id', col.id).select()
+    const { data: aindaLa } = await eng.sb.from('colaboradores').select('id').eq('id', col.id)
+    conferir('colaborador não exclui cadastro (só admin)', !eDel && aindaLa?.length === 1, eDel)
+    const { data: fcli } = await cliente.sb.from('funcoes').select('id')
+    const { data: fbeta } = await beta.sb.from('colaboradores').select('id').eq('empresa_id', aurora)
+    conferir('cliente e outra empresa não veem os cadastros da Aurora', fcli?.length === 0 && fbeta?.length === 0, { fcli, fbeta })
+  }
 
   {
     const { error } = await eng.sb.rpc('mudar_status_relatorio', { p_relatorio: novoRdo, p_status: 'revisar' })
@@ -189,6 +216,14 @@ async function principal() {
     conferir('após o admin aprovar, o cliente vê a foto e assina a miniatura', !eA && l2?.length === 1 && !eS2, { eA, l2, eS2 })
     const { error: eC } = await cliente.sb.from('relatorio_comentarios').insert({ relatorio_id: novoRdo, texto: 'Obrigado pelo registro!' })
     conferir('cliente comenta no RDO aprovado', !eC, eC)
+    const { data: notas } = await cliente.sb.from('relatorio_notas_compras').select('fornecedor, valor').eq('relatorio_id', novoRdo)
+    conferir('cliente vê a nota de compra do RDO aprovado', notas?.length === 1, notas)
+
+    const { data: hist } = await admin.sb.from('historico').select('acao, usuario_nome, descricao').eq('entidade_id', novoRdo).order('id')
+    conferir('histórico do RDO: criou → enviou_aprovacao → aprovou, com nomes', JSON.stringify(hist?.map((h) => h.acao)) === JSON.stringify(['criou', 'enviou_aprovacao', 'aprovou']) && hist[2].usuario_nome === 'Carla Menezes', hist)
+    const { data: hcli } = await cliente.sb.from('historico').select('id').limit(1)
+    const { error: eH } = await admin.sb.from('historico').insert({ empresa_id: aurora, acao: 'x', entidade: 'y' })
+    conferir('cliente não lê histórico; ninguém escreve nele pela API', hcli?.length === 0 && !!eH, { hcli, eH })
   }
 
   // exclusão
@@ -204,6 +239,7 @@ async function principal() {
   {
     const { data, error } = await admin.sb.rpc('painel_resumo')
     conferir('painel do admin: 5 obras, armazenamento com limite 2 GB', !error && data.obras_total === 5 && data.armazenamento_limite_bytes === 2048 * 1024 * 1024 && data.empresas_total === null, error ?? data)
+    conferir('painel traz relatorios_pendentes', data?.relatorios_pendentes >= 2, data)
     const { data: dm } = await master.sb.rpc('painel_resumo')
     conferir('painel do master: 2 empresas', dm?.empresas_total === 2, dm)
   }

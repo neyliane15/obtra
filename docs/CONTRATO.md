@@ -168,3 +168,49 @@ No fluxo "Novo RDO" o relatório só é criado (RPC `criar_relatorio`) ao escolh
 
 ### Visual
 Seguir o espírito dos prints (sidebar escura, conteúdo claro, tabelas em cartão com cabeçalho em versalete pequeno, pílulas de status, botões de ação primários chamativos, rodapé fixo no RDO), MAS com a identidade Obtra: sidebar azul-marinho profundo, acento âmbar/amarelo de canteiro para o item ativo e botão primário (como no print, porém harmonizado com o azul), fontes menores e mais refinadas que o print, detalhes de borda (cantoneiras/linhas de prancha técnica).
+
+## Notas do back-end (implementação — como ficou de fato)
+
+Detalhes que o texto acima não fixava, ou em que o back foi mais estrito por segurança. O front pode contar com isto.
+
+### Contas e perfis
+- **Metadados só valem vindos da RPC.** O gatilho em `auth.users` só usa `raw_user_meta_data.papel/empresa_id` quando o insert vem de `admin_criar_usuario` (bandeira interna da transação). Cadastro aberto (`supabase.auth.signUp`) nasce **`cliente` sem empresa** (não vê nada) — senão qualquer um se cadastraria como admin de qualquer empresa. Exceção: o e-mail de `configuracao.master_email` vira master **se ainda não existir master**.
+- `admin_criar_usuario` aceita `p_papel = 'master'` **só sem JWT** (SQL Editor / service_role) — é o caminho do instalador. Pela API, ninguém cria master.
+- Mensagens de erro (em `error.message` do supabase-js): `E-mail já cadastrado`, `A senha deve ter pelo menos 6 caracteres`, `E-mail inválido`, `Informe o nome`, `Informe a empresa do usuário`, `Sem permissão para criar usuários`, `Administrador só cria usuários na própria empresa`, `Você não pode excluir a si mesmo`, `Somente o administrador aprova ou reabre um relatório aprovado`, `Limite de armazenamento da empresa atingido`, `Você não pode alterar o próprio papel, empresa ou situação`.
+- `perfis`: o **próprio perfil é sempre legível**, mesmo com `ativo = false` ou empresa inativa (para a tela explicar "conta desativada"); nada mais é visível nesse estado. O cliente lê os perfis `admin`/`colaborador` da empresa dele (nomes em comentários), nunca outros clientes. `perfis.email` não se altera pelo perfil (acompanha `auth.users`).
+- `admin_excluir_usuario`: ninguém exclui master pela API. Excluir conta com histórico é seguro: `criado_por`, `aprovado_por`, `autor_id` viram `null`.
+- O master excluir uma empresa apaga perfis/obras/tudo dela; as contas em `auth.users` desses usuários ficam órfãs (sem perfil → não veem nada).
+
+### Permissões por tabela (além da tabela de papéis)
+- `obras`: inserir/excluir = admin/master; **colaborador edita** (status, capa, observações). `empresa_id` da obra não muda.
+- `relatorios`: excluir = admin/master. Colaborador não grava `status = 'aprovado'` (nem por UPDATE direto) e não edita aprovado (UPDATE volta 0 linhas, sem erro — use as RPCs para ter mensagem). `obra_id`, `empresa_id`, `numero` não mudam. `aprovado_por/aprovado_em` são preenchidos/limpos por gatilho em qualquer caminho.
+- Filhos do RDO: não mudam de `relatorio_id`. `relatorio_comentarios`: o autor edita o próprio; `autor_id` é sempre `auth.uid()` (gatilho).
+- `fotos`/`documentos`: `path` (e `thumb_path`) têm de começar com `{empresa_id}/{obra_id}/`; `bytes` é **sobrescrito pelo tamanho real do Storage** (`metadata.size`) quando o arquivo existe — então **envie os arquivos antes de inserir a linha**. `path`/`bytes`/`obra_id` não mudam depois (para trocar: exclua e envie de novo). Ao excluir foto/documento, apague os arquivos no Storage (`remove`) — o banco não apaga objeto.
+- Anônimo (sem login) **não tem privilégio em tabela nenhuma** (resposta "permission denied"); a tela de login não deve consultar o banco.
+
+### Storage (mais estrito que o texto acima)
+- Leitura pelo **cliente**: só os arquivos que ele já enxerga pelas tabelas — `capa_path/capa_thumb_path` das obras dele, `path/thumb_path` de fotos sem RDO ou de RDO aprovado, `path` de documentos `visivel_cliente`, e o logo da empresa. (Sem isso, um `list` na pasta da obra entregaria fotos de RDO não aprovado.) Consequência: para o cliente, `createSignedUrls` devolve erro por item nos arquivos que ele não pode ver.
+- Escrita (equipe): o 2º segmento tem de ser `logo` (só admin/master) ou o id de uma **obra da própria empresa**. Com a cota estourada (`usado >= limite`) o Storage recusa novos envios.
+
+### Embeds úteis no PostgREST (nomes das FKs)
+- `relatorios`: `criado:perfis!relatorios_criado_por_fkey(nome)`, `aprovador:perfis!relatorios_aprovado_por_fkey(nome)`, `obras(nome)`.
+- `fotos`/`documentos`/`obras`: `perfis!<tabela>_criado_por_fkey(nome)`. `relatorio_comentarios`: `perfis(nome)` (FK `autor_id`).
+- Filhos do RDO direto no select: `relatorios?select=*,relatorio_mao_obra(*),relatorio_equipamentos(*),relatorio_atividades(*),relatorio_ocorrencias(*),relatorio_materiais(*),relatorio_notas_compras(*),relatorio_comentarios(*)`.
+
+### Funções auxiliares extras (security definer, `stable`)
+`eh_admin(empresa)`, `eh_cliente_da_obra(obra)`, `empresa_da_obra(obra)`, `pode_ver_relatorio(rel)`, `pode_editar_relatorio(rel)`, `empresa_do_relatorio(rel)`, `storage_pode_ler(nome)`, `storage_pode_escrever(nome)`, `storage_tem_espaco(nome)`, `uuid_seguro(texto)`.
+
+### RPCs — detalhes
+- `criar_relatorio`: "anterior" = o de maior `data` (desempate por `numero`). Com `p_copiar_anterior` copia `responsavel`, `horario_inicio/fim`, `intervalo_inicio/fim`, mão de obra (com `colaborador_id`) e equipamentos (com `equipamento_id`) — **não** copia atividades, ocorrências, materiais, notas. Sem anterior ou sem copiar: `responsavel` = nome do perfil de quem cria (vale também para insert direto com `responsavel` vazio).
+- `painel_resumo()`: `armazenamento_*` vêm `null` para colaborador e cliente; para o master são a soma de todas as empresas. Inclui `relatorios_pendentes` (status `revisar`).
+
+### Adendo 1 — como ficou
+- `relatorio_materiais.quantidade` é **`numeric(12,2)`** (o texto livre de unidade foi para `unidade`).
+- `relatorio_mao_obra` ganhou também **`colaborador_nome text`**: com `colaborador_id`, o gatilho preenche `colaborador_nome` e `funcao` (nome da função do cadastro) quando vierem vazios, e no insert herda `tipo = 'terceirizada'` + `empresa_terceira` do cadastro. Assim o RDO guarda o texto (o cliente não lê os cadastros; e o item sobrevive à exclusão do cadastro). Idem `relatorio_equipamentos.nome` (do equipamento) e `relatorio_materiais.descricao`/`unidade` (do material). Pode mandar `funcao: ''` / `nome: ''` / `descricao: ''` que o banco completa.
+- Item do RDO só aponta para cadastro da **mesma empresa** do relatório (erro `Colaborador de outra empresa` etc.). `colaboradores.funcao_id` idem.
+- Cadastros: `unique(empresa_id, nome)` em `funcoes`, `materiais`, `equipamentos` (não em `colaboradores` — homônimos existem). `empresa_id` não muda. Master precisa informar `empresa_id` (erro `Informe a empresa do cadastro`).
+- `historico`: `id bigint` (identity). `obra_id`/`usuario_id` **sem FK** (o registro sobrevive à exclusão). `usuario_nome` = nome do perfil no momento, ou `Sistema` (SQL/carga). Ações: `criou`, `editou`, `excluiu`, `enviou_aprovacao`, `aprovou`, `reabriu`, `devolveu` (revisar → preenchendo), `enviou_foto`, `enviou_documento`. Entidades: `obra`, `relatorio`, `foto`, `documento`, `usuario`, `cadastro`. Eventos: obras (insert/update/delete — status descrito "a → b"), relatórios (insert/delete/mudança de status; edições de conteúdo não geram linha), fotos e documentos (insert/delete), perfis com empresa (insert/delete), cadastros (insert/delete). Exclusões em cascata (obra → seus RDOs/fotos; empresa inteira) não geram linhas extras. `descricao` já vem pronta para exibir (ex.: `RD-4 · Residencial Vista Azul enviado para aprovação`).
+
+### Ambiente local
+- Usuário demo extra: `mestre@construtoraaurora.com.br` (colaborador, "Antônio Lima").
+- A carga demo (`supabase/seed/demo.sql`) não tem fotos (não há imagens no repositório); suba pela tela.
