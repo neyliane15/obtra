@@ -9,9 +9,9 @@
 @import 'tailwindcss';
 
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-display: 'Plus Jakarta Sans', 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
   /* escala tipográfica pequena e refinada (base 13px) */
   --text-2xs: 10px;
@@ -50,7 +50,7 @@
 
   /* acento de canteiro */
   --color-ambar-700: #A85A08;
-  --color-ambar-600: #C96F0E;
+  --color-ambar-600: #B4600A;
   --color-ambar-500: #F29A2E;
   --color-ambar-400: #F6B462;
   --color-ambar-100: #FDEBD3;
@@ -63,14 +63,14 @@
   --color-linha-forte: #C8D2E1;
   --color-tinta: #0F1B2D;
   --color-tinta-suave: #4A5A72;
-  --color-tinta-fraca: #7A889D;
+  --color-tinta-fraca: #627089;
 
   /* estados */
   --color-ok-600: #13795B;
   --color-ok-50: #E8F6F0;
   --color-perigo-600: #C0342B;
   --color-perigo-50: #FDECEA;
-  --color-aviso-600: #B7791F;
+  --color-aviso-600: #9A6412;
   --color-aviso-50: #FFF6E5;
 
   --radius-sm: 5px;

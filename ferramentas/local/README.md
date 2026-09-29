@@ -1,8 +1,8 @@
 # Obtra na máquina (sem Docker, sem nuvem)
 
 ```bash
-ferramentas/local/subir.sh          # Postgres + PostgREST + portão; grava .env.local
-node ferramentas/local/fumaca.mjs   # prova de fumaça com o supabase-js de verdade
+ferramentas/local/subir.sh          # Postgres + PostgREST + portão + fotos demo; grava .env.local
+node ferramentas/local/fumaca.mjs   # prova de fumaça com o supabase-js de verdade (limpa o que cria)
 npm run dev
 ```
 
@@ -48,3 +48,12 @@ kill "$(cat "${TMPDIR:-/tmp}/obtra-local/postgrest.pid")" "$(cat "${TMPDIR:-/tmp
 ```
 
 Logs em `${TMPDIR:-/tmp}/obtra-local/`.
+
+## Fotos da demonstração
+
+`fotos-demo/*.webp` são ilustrações de canteiro (estrutura, armação, concretagem,
+alvenaria, fachada…) no formato que o app grava (1600 px q0,72 + miniatura 400 px
+q0,6). `fotos-demo/carregar.mjs` (chamado pelo `subir.sh`) as envia como os
+admins da Aurora e da Beta, liga cada uma ao RDO certo e põe as capas das obras.
+Para redesenhar: `node ferramentas/local/fotos-demo/gerar.mjs` (usa o Chromium
+do Playwright; `PW_CHROMIUM=/caminho/chrome` para outro executável).

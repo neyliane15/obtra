@@ -637,8 +637,9 @@ export function Modal({
     setTimeout(() => {
       const c = caixa.current
       if (!c || c.contains(document.activeElement)) return // autoFocus já agiu
+      const visivel = (el: HTMLElement) => el.offsetParent !== null && !(el as HTMLInputElement).disabled
       const foco =
-        c.querySelector<HTMLElement>('[data-corpo] :is(input:not([type=hidden]):not([readonly]), select, textarea)') ??
+        [...c.querySelectorAll<HTMLElement>('[data-corpo] :is(input:not([type=hidden]):not([type=file]):not([readonly]):not([aria-hidden]), select, textarea)')].find(visivel) ??
         c.querySelector<HTMLElement>('footer button:first-child') ??
         c.querySelector<HTMLElement>('button')
       foco?.focus()

@@ -5,7 +5,7 @@ import type { Documento } from '@/tipos/banco'
 import { paraNumero } from '@/tipos/banco'
 import { abrirDocumento, enviarDocumento, excluirDocumento } from '@/lib/armazenamento'
 import { ehPdf } from '@/lib/pdf-compactar'
-import { formatarBytes, formatarData } from '@/lib/formato'
+import { formatarBytes, formatarData, plural } from '@/lib/formato'
 import { supabase } from '@/lib/supabase'
 import { Botao, Esqueleto, Interruptor, Progresso, Selo, Vazio } from './ui'
 import { useAvisos } from './avisos'
@@ -45,7 +45,7 @@ export function ListaDocumentos({
       }
     }
     setEnvio(null)
-    if (ok) avisos.sucesso(`${ok} documento(s) enviado(s), compactado(s) antes do envio.`)
+    if (ok) avisos.sucesso(`${plural(ok, 'documento enviado', 'documentos enviados')} (compactados antes do envio).`)
     atualizar()
   }
 

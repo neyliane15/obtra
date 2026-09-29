@@ -10,7 +10,7 @@ import type { Historico as THistorico } from '@/tipos/banco'
 import { useObras } from '@/lib/consultas'
 import { useSessao } from '@/lib/sessao'
 import { supabase, exigir, mensagemDeErro } from '@/lib/supabase'
-import { dataLocal, normalizar } from '@/lib/formato'
+import { capitalizar, dataLocal, normalizar } from '@/lib/formato'
 import { ACAO_HISTORICO, ENTIDADE_HISTORICO } from '@/lib/rotulos'
 import { Avatar, Botao, CabecalhoPagina, Erro, Esqueleto, Selecao, Vazio } from '@/componentes/ui'
 
@@ -111,7 +111,7 @@ export default function Historico() {
             <section key={dia}>
               <h2 className="mb-2 flex items-center gap-2">
                 <span className="rounded bg-marinho-900 px-2 py-0.5 font-mono text-[10.5px] font-semibold tracking-wider text-white">{format(dataLocal(dia)!, 'dd/MM/yyyy')}</span>
-                <span className="text-[12px] text-tinta-suave capitalize">{format(dataLocal(dia)!, 'EEEE', { locale: ptBR })}</span>
+                <span className="text-[12px] text-tinta-suave">{capitalizar(format(dataLocal(dia)!, 'EEEE', { locale: ptBR }))}</span>
                 <span className="h-px flex-1 border-t border-dashed border-linha-forte" />
                 <span className="num text-[11px] text-tinta-fraca">{itens.length}</span>
               </h2>

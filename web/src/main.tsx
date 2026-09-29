@@ -5,6 +5,9 @@ import { BrowserRouter } from 'react-router-dom'
 import { App } from './App'
 import { ProvedorDeSessao } from './lib/sessao'
 import { ProvedorDeAvisos } from './componentes/avisos'
+import '@fontsource-variable/inter'
+import '@fontsource-variable/plus-jakarta-sans'
+import '@fontsource-variable/jetbrains-mono'
 import './estilos.css'
 
 const cliente = new QueryClient({

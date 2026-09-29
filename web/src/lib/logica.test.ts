@@ -154,3 +154,17 @@ describe('csv e senha', () => {
     expect(t).toContain('Senha: Ab3xyz')
   })
 })
+
+describe('campo de hora (24 h)', async () => {
+  const { completarHora } = await import('@/componentes/ui')
+  it('completa o que foi digitado', () => {
+    expect(completarHora('7')).toBe('07:00')
+    expect(completarHora('730')).toBe('07:30')
+    expect(completarHora('17:45')).toBe('17:45')
+    expect(completarHora('')).toBe('')
+  })
+  it('recusa hora inválida', () => {
+    expect(completarHora('2500')).toBeNull()
+    expect(completarHora('1275')).toBeNull()
+  })
+})

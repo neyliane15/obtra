@@ -35,6 +35,10 @@ interface Contexto {
   obra: Obra
   empresa: Empresa | null
   logoEmpresa: { dataUrl: string; largura: number; altura: number } | null
+  /** PDF baixado pelo cliente: sem notas de compras (valores internos da construtora) */
+  paraCliente: boolean
+  /** numeração corrida das seções do RDO atual */
+  secao: number
 }
 
 /* ------------------------------------------------------------ desenho -- */
@@ -51,6 +55,8 @@ function simboloObtra(doc: jsPDF, x: number, y: number, t: number) {
   doc.setFillColor(...AMBAR)
   doc.roundedRect(x + 38 * k, y + 11 * k, 13 * k, 13 * k, 2.5 * k, 2.5 * k, 'F')
 }
+
+const proxima = (c: Contexto) => String(++c.secao).padStart(2, '0')
 
 function tituloSecao(c: Contexto, y: number, titulo: string, codigo: string): number {
   const { doc, larg } = c
@@ -181,11 +187,12 @@ function cabecalho(c: Contexto, r: Relatorio): number {
 async function desenharRelatorio(c: Contexto, dados: RelatorioCompleto, fotos: Foto[], opcoes: { comFotos: boolean }) {
   const { doc } = c
   const r = dados.relatorio
+  c.secao = 0
   let y = cabecalho(c, r)
 
   // horário
   const minutos = minutosTrabalhados(r.horario_inicio, r.horario_fim, r.intervalo_inicio, r.intervalo_fim)
-  y = tituloSecao(c, y, 'Horário de trabalho', '01')
+  y = tituloSecao(c, y, 'Horário de trabalho', proxima(c))
   y = tabela(c, y, {
     head: [['Responsável', 'Entrada', 'Saída', 'Intervalo', 'Horas trabalhadas']],
     body: [[
@@ -198,7 +205,7 @@ async function desenharRelatorio(c: Contexto, dados: RelatorioCompleto, fotos: F
   })
 
   // clima
-  y = tituloSecao(c, y, 'Condição climática', '02')
+  y = tituloSecao(c, y, 'Condição climática', proxima(c))
   const periodos = [
     ['Manhã', r.clima_manha, r.condicao_manha],
     ['Tarde', r.clima_tarde, r.condicao_tarde],
@@ -219,7 +226,7 @@ async function desenharRelatorio(c: Contexto, dados: RelatorioCompleto, fotos: F
 
   // mão de obra
   const totalMO = dados.maoObra.reduce((s, m) => s + m.quantidade, 0)
-  y = tituloSecao(c, y, `Mão de obra · efetivo ${totalMO}`, '03')
+  y = tituloSecao(c, y, `Mão de obra · efetivo ${totalMO}`, proxima(c))
   y = tabela(c, y, {
     head: [['Colaborador', 'Função', 'Vínculo', 'Qtd.']],
     body: vazioSe(dados.maoObra, (l) => l.map((m) => [m.colaborador_nome || 'Equipe', m.funcao || '—', m.tipo === 'terceirizada' ? `Terceirizada${m.empresa_terceira ? ` · ${m.empresa_terceira}` : ''}` : TIPO_MAO_OBRA[m.tipo], { content: String(m.quantidade), styles: { halign: 'right' } }]), 4),
@@ -228,21 +235,21 @@ async function desenharRelatorio(c: Contexto, dados: RelatorioCompleto, fotos: F
     columnStyles: { 3: { cellWidth: 16 } },
   })
 
-  y = tituloSecao(c, y, 'Equipamentos', '04')
+  y = tituloSecao(c, y, 'Equipamentos', proxima(c))
   y = tabela(c, y, {
     head: [['Equipamento', 'Qtd.']],
     body: vazioSe(dados.equipamentos, (l) => l.map((e) => [e.nome, { content: String(e.quantidade), styles: { halign: 'right' } }]), 2),
     columnStyles: { 1: { cellWidth: 16 } },
   })
 
-  y = tituloSecao(c, y, 'Atividades realizadas', '05')
+  y = tituloSecao(c, y, 'Atividades realizadas', proxima(c))
   y = tabela(c, y, {
     head: [['Descrição', 'Situação', '%']],
     body: vazioSe(dados.atividades, (l) => l.map((a) => [a.descricao, STATUS_ATIVIDADE[a.status].rotulo, { content: `${a.progresso}%`, styles: { halign: 'right' } }]), 3),
     columnStyles: { 1: { cellWidth: 28 }, 2: { cellWidth: 16 } },
   })
 
-  y = tituloSecao(c, y, 'Ocorrências', '06')
+  y = tituloSecao(c, y, 'Ocorrências', proxima(c))
   y = tabela(c, y, {
     head: [['Tipo', 'Descrição']],
     body: vazioSe(dados.ocorrencias, (l) => l.map((o) => [TIPO_OCORRENCIA[o.tipo], o.descricao]), 2),
@@ -250,22 +257,22 @@ async function desenharRelatorio(c: Contexto, dados: RelatorioCompleto, fotos: F
   })
 
   const qtd = (v: number | string | null) => (v === null || v === '' ? '—' : paraNumero(v).toLocaleString('pt-BR'))
-  const secMat = (tipo: 'recebido' | 'utilizado', titulo: string, cod: string) => {
+  const secMat = (tipo: 'recebido' | 'utilizado', titulo: string) => {
     const l = dados.materiais.filter((m) => m.tipo === tipo)
     if (!l.length) return
-    y = tituloSecao(c, y, titulo, cod)
+    y = tituloSecao(c, y, titulo, proxima(c))
     y = tabela(c, y, {
       head: [['Material', 'Quantidade', 'Unidade']],
       body: l.map((m) => [m.descricao, { content: qtd(m.quantidade), styles: { halign: 'right' } }, m.unidade ?? '']),
       columnStyles: { 1: { cellWidth: 26 }, 2: { cellWidth: 22 } },
     })
   }
-  secMat('recebido', 'Materiais recebidos', '07')
-  secMat('utilizado', 'Materiais utilizados', '08')
+  secMat('recebido', 'Materiais recebidos')
+  secMat('utilizado', 'Materiais utilizados')
 
-  if (dados.notas.length) {
+  if (dados.notas.length && !c.paraCliente) {
     const totalNotas = dados.notas.reduce((s, n) => s + paraNumero(n.valor), 0)
-    y = tituloSecao(c, y, 'Notas de compras', '09')
+    y = tituloSecao(c, y, 'Notas de compras', proxima(c))
     y = tabela(c, y, {
       head: [['Fornecedor', 'Nº da nota', 'Descrição', 'Valor']],
       body: dados.notas.map((n) => [n.fornecedor ?? '—', n.numero_nota ?? '—', n.descricao ?? '', { content: formatarMoeda(paraNumero(n.valor)), styles: { halign: 'right' } }]),
@@ -276,7 +283,7 @@ async function desenharRelatorio(c: Contexto, dados: RelatorioCompleto, fotos: F
   }
 
   if (r.observacoes?.trim()) {
-    y = tituloSecao(c, y, 'Observações', '10')
+    y = tituloSecao(c, y, 'Observações', proxima(c))
     y = tabela(c, y, { body: [[r.observacoes]], theme: 'plain', styles: { fontSize: 8.5, cellPadding: 2.5, lineColor: LINHA, lineWidth: 0.15 } })
   }
 
@@ -291,7 +298,7 @@ async function desenharRelatorio(c: Contexto, dados: RelatorioCompleto, fotos: F
       doc.addPage()
       y = TOPO_CONTINUACAO + 4
     }
-    y = tituloSecao(c, y, `Registro fotográfico · ${fotos.length}`, '11')
+    y = tituloSecao(c, y, `Registro fotográfico · ${fotos.length}`, proxima(c))
     let col = 0
     for (let i = 0; i < fotos.length; i++) {
       const f = fotos[i]!
@@ -416,9 +423,13 @@ async function prepararContexto(obraId: string): Promise<Contexto> {
       logoEmpresa = null
     }
   }
+  const { data: usuario } = await supabase.auth.getUser()
+  const papel = usuario.user
+    ? ((await supabase.from('perfis').select('papel').eq('id', usuario.user.id).maybeSingle()).data as { papel: string } | null)?.papel
+    : null
   const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true })
   doc.setProperties({ title: `RDO — ${obra.nome}`, creator: 'Obtra' })
-  return { doc, larg: doc.internal.pageSize.getWidth(), alt: doc.internal.pageSize.getHeight(), obra, empresa, logoEmpresa }
+  return { doc, larg: doc.internal.pageSize.getWidth(), alt: doc.internal.pageSize.getHeight(), obra, empresa, logoEmpresa, paraCliente: papel === 'cliente', secao: 0 }
 }
 
 function nomeArquivo(s: string) {

@@ -137,14 +137,14 @@ export default function Obras() {
             <div className="rolagem-fina relative overflow-x-auto">
               <table className="w-full min-w-[1000px] table-fixed text-left text-[12.5px]">
                 <colgroup>
-                  <col className="w-[22%]" />
+                  <col className="w-[21%]" />
                   <col className="w-[17%]" />
-                  <col className="w-[11%]" />
                   <col className="w-[13%]" />
-                  <col className="w-[68px]" />
-                  <col className="w-[86px]" />
-                  <col className="w-[80px]" />
-                  <col className="w-[128px]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[64px]" />
+                  <col className="w-[84px]" />
+                  <col className="w-[78px]" />
+                  <col className="w-[142px]" />
                   <col className="w-[76px]" />
                 </colgroup>
                 <thead>
@@ -170,7 +170,11 @@ export default function Obras() {
                         <td className="px-4 py-3 text-tinta-suave">{o.responsavel_tecnico ?? '—'}</td>
                         <td className="num px-4 py-3 text-right font-mono text-[12px]">{pr.definido ? `${pr.total}d` : '—'}</td>
                         <td className="num px-4 py-3 text-right font-mono text-[12px]">{pr.definido ? `${pr.decorridos}d` : '—'}</td>
-                        <td className={clsx('num px-4 py-3 text-right font-mono text-[12px]', pr.atrasado ? 'font-semibold text-perigo-600' : pr.definido && pr.restantes <= 15 ? 'text-ambar-700' : '')}>{pr.definido ? `${pr.restantes}d` : '—'}</td>
+                        {o.status === 'concluida' ? (
+                          <td className="px-4 py-3 text-right text-[11px] font-medium text-ok-600">entregue</td>
+                        ) : (
+                          <td className={clsx('num px-4 py-3 text-right font-mono text-[12px]', pr.atrasado ? 'font-semibold text-perigo-600' : pr.definido && pr.restantes <= 15 ? 'text-ambar-700' : '')}>{pr.definido ? `${pr.restantes}d` : '—'}</td>
+                        )}
                         <td className="px-4 py-3"><Selo tom={st.tom}>{st.rotulo}</Selo></td>
                         <td className="py-3 pr-3 pl-1" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-0.5">

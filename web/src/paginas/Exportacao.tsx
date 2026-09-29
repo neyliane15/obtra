@@ -5,7 +5,7 @@ import { useObras } from '@/lib/consultas'
 import { useSessao } from '@/lib/sessao'
 import { supabase, exigir } from '@/lib/supabase'
 import { baixarCsv, gerarCsv } from '@/lib/csv'
-import { capitalizar, codigoRelatorio, diaDaSemana, formatarData, hojeISO } from '@/lib/formato'
+import { capitalizar, codigoRelatorio, diaDaSemana, formatarData, hojeISO, plural } from '@/lib/formato'
 import { formatarDuracao, minutosTrabalhados } from '@/lib/horario'
 import { CLIMA, CONDICAO, STATUS_RELATORIO, TIPO_MAO_OBRA, TIPO_MATERIAL } from '@/lib/rotulos'
 import type { Relatorio } from '@/tipos/banco'
@@ -101,7 +101,7 @@ export default function Exportacao() {
         ]),
       )
       baixarCsv(`relatorios-${sufixo}`, csv)
-      avisos.sucesso(`${l.length} relatório(s) exportado(s).`)
+      avisos.sucesso(`${plural(l.length, 'relatório exportado', 'relatórios exportados')}.`)
     })
 
   const csvMaoObra = () =>
@@ -109,7 +109,7 @@ export default function Exportacao() {
       const l = await buscar()
       const linhas = l.flatMap((r) => r.relatorio_mao_obra.map((m) => [codigoRelatorio(r.numero), r.obras?.nome, formatarData(r.data), m.colaborador_nome ?? '', m.funcao, TIPO_MAO_OBRA[m.tipo], m.empresa_terceira ?? '', m.quantidade]))
       baixarCsv(`mao-de-obra-${sufixo}`, gerarCsv(['Nº', 'Obra', 'Data', 'Colaborador', 'Função', 'Vínculo', 'Empresa', 'Quantidade'], linhas))
-      avisos.sucesso(`${linhas.length} linha(s) exportada(s).`)
+      avisos.sucesso(`${plural(linhas.length, 'linha exportada', 'linhas exportadas')}.`)
     })
 
   const csvMateriais = () =>
@@ -117,7 +117,7 @@ export default function Exportacao() {
       const l = await buscar()
       const linhas = l.flatMap((r) => r.relatorio_materiais.map((m) => [codigoRelatorio(r.numero), r.obras?.nome, formatarData(r.data), TIPO_MATERIAL[m.tipo], m.descricao, m.quantidade === null ? '' : paraNumero(m.quantidade), m.unidade ?? '']))
       baixarCsv(`materiais-${sufixo}`, gerarCsv(['Nº', 'Obra', 'Data', 'Movimento', 'Material', 'Quantidade', 'Unidade'], linhas))
-      avisos.sucesso(`${linhas.length} linha(s) exportada(s).`)
+      avisos.sucesso(`${plural(linhas.length, 'linha exportada', 'linhas exportadas')}.`)
     })
 
   return (

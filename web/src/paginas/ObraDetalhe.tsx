@@ -11,7 +11,7 @@ import { permissoes } from '@/lib/permissoes'
 import { supabase, exigir, mensagemDeErro } from '@/lib/supabase'
 import { excluirFoto } from '@/lib/armazenamento'
 import { excluirObraCompleta } from '@/lib/acoes'
-import { formatarData } from '@/lib/formato'
+import { formatarData, plural } from '@/lib/formato'
 import { STATUS_OBRA, STATUS_RELATORIO } from '@/lib/rotulos'
 import type { Foto, StatusRelatorio } from '@/tipos/banco'
 import { Abas, Avatar, Botao, CarregandoPagina, Cartao, Dado, Erro, Esqueleto, Selecao, Selo, Vazio } from '@/componentes/ui'
@@ -128,7 +128,7 @@ export default function ObraDetalhe() {
 }
 
 function AbaRelatorios({
-  obraId, lista, podeCriar, aoNovo,
+  lista, podeCriar, aoNovo,
 }: {
   obraId: string
   lista: ReturnType<typeof useRelatorios>
@@ -151,8 +151,8 @@ function AbaRelatorios({
   return (
     <Cartao
       semPadding
-      titulo={`${lista.data.length} relatórios`}
-      codigo={`OB-${obraId.slice(0, 4).toUpperCase()}`}
+      titulo={`${lista.data.length} ${lista.data.length === 1 ? 'relatório' : 'relatórios'}`}
+      codigo="RDO"
       acao={
         <Selecao value={filtro} onChange={(e) => setFiltro(e.target.value as StatusRelatorio | 'todos')} className="!h-8 !w-auto text-xs" aria-label="Filtrar por status">
           <option value="todos">Todos</option>
@@ -215,7 +215,7 @@ function AbaFotos({ obra, fotos, carregando, podeEditar }: { obra: { id: string;
             <h3 className="mb-2.5 flex items-center gap-2 text-[12px] font-semibold text-tinta-suave">
               <span className="num font-mono text-[11px] text-marinho-600">{formatarData(dia)}</span>
               <span className="h-px flex-1 border-t border-dashed border-linha-forte" />
-              <span className="num text-[11px] text-tinta-fraca">{fs.length} foto(s)</span>
+              <span className="num text-[11px] text-tinta-fraca">{plural(fs.length, 'foto')}</span>
             </h3>
             <Galeria fotos={fs} aoExcluir={podeEditar ? (f) => void excluir(f) : undefined} aoLegendar={podeEditar ? (f, l) => void legendar(f, l) : undefined} />
           </section>

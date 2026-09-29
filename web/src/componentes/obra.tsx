@@ -3,7 +3,7 @@ import { clsx } from 'clsx'
 import { Calendar, ChevronRight, Cloud, CloudRain, HardHat, MapPin, Moon, Sun, Sunrise, Sunset } from 'lucide-react'
 import type { Clima, Condicao } from '@/tipos/banco'
 import { calcularPrazo } from '@/lib/prazo'
-import { diaDaSemana, formatarData, numeroRelatorio } from '@/lib/formato'
+import { capitalizar, diaDaSemana, formatarData } from '@/lib/formato'
 import { CLIMA, STATUS_OBRA, STATUS_RELATORIO } from '@/lib/rotulos'
 import type { ObraLista, RelatorioLista } from '@/lib/consultas'
 import { ImagemAssinada } from './midia'
@@ -24,6 +24,7 @@ export const PERIODOS = [
 ] as const
 
 export function ClimaResumo({ manha, tarde, noite }: { manha: Clima | null; tarde: Clima | null; noite?: Clima | null }) {
+  if (!manha && !tarde && !noite) return <span className="text-[11px] text-tinta-fraca">Clima não informado</span>
   return (
     <span className="inline-flex items-center gap-1" title={`Manhã: ${manha ? CLIMA[manha] : '—'} · Tarde: ${tarde ? CLIMA[tarde] : '—'}`}>
       <IconeClima clima={manha} className="size-3.5" />
@@ -38,8 +39,18 @@ export function SeloCondicao({ condicao }: { condicao: Condicao | null }) {
   return condicao === 'praticavel' ? <Selo tom="ok">Praticável</Selo> : <Selo tom="perigo">Impraticável</Selo>
 }
 
-export function PrazoObra({ obra, compacto }: { obra: Parameters<typeof calcularPrazo>[0]; compacto?: boolean }) {
+export function PrazoObra({ obra, compacto }: { obra: Parameters<typeof calcularPrazo>[0] & { status?: string }; compacto?: boolean }) {
   const p = calcularPrazo(obra)
+  if (obra.status === 'concluida')
+    return (
+      <div>
+        <div className="mb-1.5 flex items-baseline justify-between gap-2 text-[11px]">
+          <span className="font-medium text-ok-600">Obra concluída</span>
+          {p.definido && <span className="num text-tinta-fraca">prazo de {p.total} dias</span>}
+        </div>
+        <Progresso valor={100} tom="ok" altura={compacto ? 4 : 6} rotuloAcessivel="Obra concluída" />
+      </div>
+    )
   if (!p.definido) return <p className="text-xs text-tinta-fraca">Prazo não definido</p>
   const tom = p.atrasado ? 'perigo' : p.percentual >= 85 ? 'ambar' : 'marinho'
   return (
@@ -108,23 +119,24 @@ export function LinhaRelatorio({ r, para }: { r: RelatorioLista; para: string })
       className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-marinho-50/60 sm:gap-4"
     >
       <span className="flex w-12 shrink-0 flex-col items-center rounded-md border border-linha bg-papel py-1.5 group-hover:border-marinho-200">
-        <span className="font-mono text-[8.5px] tracking-widest text-tinta-fraca">RDO</span>
-        <span className="num font-display text-[14px] leading-tight font-extrabold text-marinho-900">{numeroRelatorio(r.numero)}</span>
+        <span className="font-mono text-[8.5px] tracking-widest text-tinta-fraca">RD</span>
+        <span className="num font-display text-[14px] leading-tight font-extrabold text-marinho-900">{r.numero}</span>
       </span>
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-1.5 text-[13px] font-semibold text-tinta">
           <Calendar className="size-3.5 text-tinta-fraca" />
           <span className="num">{formatarData(r.data)}</span>
-          <span className="hidden truncate font-normal text-tinta-fraca capitalize sm:inline">· {diaDaSemana(r.data)}</span>
+          <span className="hidden truncate font-normal text-tinta-fraca sm:inline">· {capitalizar(diaDaSemana(r.data))}</span>
         </p>
-        <div className="mt-1 flex items-center gap-2.5">
-          <ClimaResumo manha={r.clima_manha} tarde={r.clima_tarde} noite={r.clima_noite} />
+        <div className="mt-1 flex flex-wrap items-center gap-2.5">
+          <ClimaResumo manha={r.clima_manha} tarde={r.clima_tarde} noite={r.clima_noite ?? undefined} />
           {r.condicao_manha === 'impraticavel' || r.condicao_tarde === 'impraticavel' ? (
             <span className="text-[11px] font-medium text-perigo-600">Impraticável</span>
           ) : null}
+          <Selo tom={st.tom} className="sm:hidden">{st.rotulo}</Selo>
         </div>
       </div>
-      <Selo tom={st.tom}>{st.rotulo}</Selo>
+      <Selo tom={st.tom} className="max-sm:hidden">{st.rotulo}</Selo>
       <ChevronRight className="size-4 text-tinta-fraca transition-transform group-hover:translate-x-0.5" />
     </Link>
   )

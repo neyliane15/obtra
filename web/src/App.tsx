@@ -25,6 +25,7 @@ const Empresas = lazy(() => import('./paginas/master/Empresas'))
 const TodosUsuarios = lazy(() => import('./paginas/master/Usuarios'))
 const PortalInicio = lazy(() => import('./paginas/portal/PortalInicio'))
 const PortalObra = lazy(() => import('./paginas/portal/PortalObra'))
+const PortalRelatorio = lazy(() => import('./paginas/portal/PortalRelatorio'))
 
 function TelaCentral({ icone, titulo, children }: { icone: ReactNode; titulo: string; children: ReactNode }) {
   return (
@@ -125,7 +126,7 @@ export function App() {
         <Route element={<Protegida papeis={(p) => p === 'cliente'}><CascaPortal /></Protegida>}>
           <Route path="/portal" element={<PortalInicio />} />
           <Route path="/portal/obras/:id" element={<PortalObra />} />
-          <Route path="/portal/relatorios/:id" element={<Relatorio />} />
+          <Route path="/portal/relatorios/:id" element={<PortalRelatorio />} />
         </Route>
 
         <Route path="*" element={<NaoEncontrada />} />

@@ -94,6 +94,7 @@ export function ListaUsuarios({
                     )}
                   </div>
                 )}
+                {(proprio || protegido) && <span className="hidden size-7 sm:block" aria-hidden />}
               </div>
             </li>
           )

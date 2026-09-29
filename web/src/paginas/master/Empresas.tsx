@@ -9,7 +9,7 @@ import { paraNumero } from '@/tipos/banco'
 import { supabase, exigir, mensagemDeErro } from '@/lib/supabase'
 import { useSessao } from '@/lib/sessao'
 import { removerPasta } from '@/lib/armazenamento'
-import { formatarBytes, formatarData, normalizar, percentualUso } from '@/lib/formato'
+import { formatarBytes, formatarData, normalizar, percentualUso, plural } from '@/lib/formato'
 import { UFS } from '@/lib/rotulos'
 import { Botao, CabecalhoPagina, Campo, CampoTexto, Erro, Esqueleto, Interruptor, Modal, Progresso, Selecao, Selo, Vazio } from '@/componentes/ui'
 import { ImagemAssinada } from '@/componentes/midia'
@@ -67,7 +67,7 @@ export default function Empresas() {
       for (const u of (us as { id: string }[] | null) ?? []) await supabase.rpc('admin_excluir_usuario', { p_usuario: u.id })
       const { error } = await supabase.from('empresas').delete().eq('id', e.id)
       if (error) throw error
-      avisos.sucesso(`Empresa excluída (${n} arquivo(s) removidos).`)
+      avisos.sucesso(`Empresa excluída (${plural(n, 'arquivo removido', 'arquivos removidos')}).`)
       trocarEmpresa(null)
       void qc.invalidateQueries({ queryKey: ['empresas'] })
       void recarregar()
@@ -99,7 +99,7 @@ export default function Empresas() {
       ) : (
         <div className="cartao overflow-hidden">
           <div className="hidden grid-cols-[1.6fr_90px_90px_1.2fr_110px_120px] gap-4 border-b border-linha bg-papel px-4 py-2 md:grid">
-            {['Empresa', 'Obras', 'Usuários', 'Armazenamento', 'Situação', ''].map((c) => <span key={c} className="rotulo !text-[9.5px]">{c}</span>)}
+            {['Empresa', 'Obras', 'Usuários', 'Armazenamento', 'Situação', 'Ações'].map((c) => <span key={c} className={c === 'Ações' ? 'rotulo pr-2 text-right !text-[9.5px]' : 'rotulo !text-[9.5px]'}>{c}</span>)}
           </div>
           <ul className="divide-y divide-linha">
             {itens.map((e) => {
@@ -119,7 +119,7 @@ export default function Empresas() {
                   <p className="num text-[12.5px] text-tinta-suave"><span className="rotulo md:hidden">Usuários </span>{e.perfis?.[0]?.count ?? '—'}</p>
                   <div>
                     <Progresso valor={pct} tom={pct > 90 ? 'perigo' : pct > 70 ? 'ambar' : 'marinho'} altura={5} rotuloAcessivel={`Armazenamento de ${e.nome}`} />
-                    <p className="num mt-1 text-[10.5px] text-tinta-fraca">{formatarBytes(usado)} / {formatarBytes(limite, 0)} · {pct.toFixed(0)}%</p>
+                    <p className="num mt-1 text-[10.5px] text-tinta-fraca">{formatarBytes(usado)} / {formatarBytes(limite, 0)} · {usado > 0 && pct < 1 ? '<1' : pct.toFixed(0)}%</p>
                   </div>
                   <div>{e.ativa ? <Selo tom="ok">Ativa</Selo> : <Selo tom="perigo">Inativa</Selo>}</div>
                   <div className="flex items-center justify-end gap-1.5">

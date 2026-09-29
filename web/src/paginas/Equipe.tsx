@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Search, UserPlus, Users } from 'lucide-react'
 import { usePerfis } from '@/lib/consultas'
 import { useSessao } from '@/lib/sessao'
-import { normalizar } from '@/lib/formato'
+import { normalizar, plural } from '@/lib/formato'
 import { mensagemDeErro } from '@/lib/supabase'
 import { Botao, CabecalhoPagina, Erro, Vazio } from '@/componentes/ui'
 import { ListaUsuarios } from '@/componentes/listaUsuarios'
@@ -36,7 +36,7 @@ export default function Equipe({ embutido = false }: { embutido?: boolean }) {
         <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-tinta-fraca" />
         <input className="campo pl-8" placeholder="Buscar por nome, e-mail ou cargo…" value={busca} onChange={(e) => setBusca(e.target.value)} />
       </label>
-      {embutido && <div className="flex items-center gap-3"><span className="text-[12px] text-tinta-suave">{ativos} ativo(s) · admins gerenciam, colaboradores preenchem RDOs</span><Botao variante="ambar" icone={<UserPlus className="size-4" />} onClick={() => setNovo(true)}>Novo usuário</Botao></div>}
+      {embutido && <div className="flex items-center gap-3"><span className="text-[12px] text-tinta-suave">{plural(ativos, 'ativo')} · admins gerenciam, colaboradores preenchem RDOs</span><Botao variante="ambar" icone={<UserPlus className="size-4" />} onClick={() => setNovo(true)}>Novo usuário</Botao></div>}
       </div>
       {perfis.isError ? (
         <Erro mensagem={mensagemDeErro(perfis.error)} aoTentar={() => void perfis.refetch()} />

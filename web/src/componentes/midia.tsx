@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { clsx } from 'clsx'
 import { ChevronLeft, ChevronRight, Download, ImageOff, ImagePlus, Loader2, Trash2, X } from 'lucide-react'
 import { useUrlAssinada } from '@/lib/armazenamento'
-import { formatarData } from '@/lib/formato'
+import { formatarData, plural } from '@/lib/formato'
 import type { Foto } from '@/tipos/banco'
 import { Botao, Progresso } from './ui'
 
@@ -257,7 +257,7 @@ export function EnvioDeFotos({
           <Progresso valor={((progresso.feitos + progresso.falhas) / progresso.total) * 100} tom={progresso.falhas ? 'ambar' : 'marinho'} rotuloAcessivel="Progresso do envio" />
           {!enviando && (
             <p className="mt-1.5 text-xs text-tinta-suave">
-              {progresso.feitos} enviada(s){progresso.falhas ? ` · ${progresso.falhas} falha(s)` : ''}
+              {plural(progresso.feitos, 'foto enviada', 'fotos enviadas')}{progresso.falhas ? ` · ${plural(progresso.falhas, 'falha')}` : ''}
             </p>
           )}
         </div>

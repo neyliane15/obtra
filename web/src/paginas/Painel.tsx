@@ -35,7 +35,7 @@ function Kpi({ rotulo, valor, detalhe, icone, codigo, destaque, alerta, children
       <p className={clsx('num mt-2 font-display text-[28px] leading-none font-extrabold tracking-tight', destaque ? 'text-white' : 'text-marinho-900')}>{valor}</p>
       {detalhe && <p className={clsx('mt-2 text-[11.5px]', destaque ? 'text-marinho-200/80' : 'text-tinta-suave')}>{detalhe}</p>}
       {children}
-      <span className={clsx('absolute right-3 bottom-2 font-mono text-[9px] tracking-widest', destaque ? 'text-marinho-400' : 'text-marinho-200')}>{codigo}</span>
+      <span className={clsx('absolute right-3 bottom-2 hidden font-mono sm:block text-[9px] tracking-widest', destaque ? 'text-marinho-400' : 'text-marinho-200')}>{codigo}</span>
     </div>
   )
 }
@@ -103,7 +103,7 @@ export default function Painel() {
               <Kpi rotulo="Pendentes de aprovação" valor={r.relatorios_pendentes ?? 0} detalhe={(r.relatorios_pendentes ?? 0) > 0 ? 'Aguardando o administrador' : 'Nada pendente'} icone={<Hourglass />} codigo="K-03" alerta={(r.relatorios_pendentes ?? 0) > 0} />
             </Link>
             {limite > 0 ? (
-              <Kpi rotulo="Armazenamento" valor={<>{pct.toFixed(0)}<span className="text-[16px] text-tinta-fraca">%</span></>} icone={<Database />} codigo="K-04">
+              <Kpi rotulo="Armazenamento" valor={<>{usado > 0 && pct < 1 ? '<1' : pct.toFixed(0)}<span className="text-[16px] text-tinta-fraca">%</span></>} icone={<Database />} codigo="K-04">
                 <Progresso valor={pct} tom={pct > 90 ? 'perigo' : pct > 70 ? 'ambar' : 'marinho'} className="mt-3" altura={5} rotuloAcessivel="Uso do armazenamento" />
                 <p className="num mt-1.5 text-[11px] text-tinta-suave">
                   {formatarBytes(usado)} de {formatarBytes(limite, 0)}

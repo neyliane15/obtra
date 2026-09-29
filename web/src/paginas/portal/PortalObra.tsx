@@ -4,7 +4,7 @@ import { clsx } from 'clsx'
 import { ArrowLeft, Camera, ChevronRight, ClipboardList, FileDown, FileText, HardHat, MapPin } from 'lucide-react'
 import { useDocumentos, useFotosObra, useObra, useRelatorios } from '@/lib/consultas'
 import { mensagemDeErro } from '@/lib/supabase'
-import { capitalizar, codigoRelatorio, diaDaSemana, formatarData } from '@/lib/formato'
+import { capitalizar, diaDaSemana, formatarData } from '@/lib/formato'
 import { STATUS_OBRA } from '@/lib/rotulos'
 import { Abas, Botao, CarregandoPagina, Dado, Erro, Esqueleto, Selo, Vazio } from '@/componentes/ui'
 import { Galeria, ImagemAssinada } from '@/componentes/midia'
@@ -34,6 +34,8 @@ export default function PortalObra() {
   const o = obra.data
   if (!o) return <Vazio titulo="Obra não encontrada" descricao="Ela não está liberada para o seu acesso." />
   const aprovados = (rel.data ?? []).filter((r) => r.status === 'aprovado')
+  const fotosPorRdo = new Map<string, NonNullable<typeof fotos.data>>()
+  for (const f of fotos.data ?? []) if (f.relatorio_id) fotosPorRdo.set(f.relatorio_id, [...(fotosPorRdo.get(f.relatorio_id) ?? []), f])
 
   async function pdf(rid: string) {
     setBaixando(rid)
@@ -98,13 +100,22 @@ export default function PortalObra() {
                         <span className="font-mono text-[8px] tracking-widest text-marinho-300">RD</span>
                         <span className="num font-display text-[15px] leading-tight font-extrabold">{r.numero}</span>
                       </span>
-                      <span className="min-w-0">
+                      <span className="min-w-0 flex-1">
                         <span className="block text-[13.5px] font-semibold text-tinta">{capitalizar(diaDaSemana(r.data))}, {formatarData(r.data)}</span>
-                        <span className="mt-1 flex items-center gap-2 text-[11.5px] text-tinta-fraca">
-                          <ClimaResumo manha={r.clima_manha} tarde={r.clima_tarde} noite={r.clima_noite} />
-                          {codigoRelatorio(r.numero)}
+                        <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-tinta-fraca">
+                          <ClimaResumo manha={r.clima_manha} tarde={r.clima_tarde} />
+                          {(fotosPorRdo.get(r.id)?.length ?? 0) > 0 && (
+                            <span className="inline-flex items-center gap-1"><Camera className="size-3" />{fotosPorRdo.get(r.id)!.length} foto{fotosPorRdo.get(r.id)!.length > 1 ? 's' : ''}</span>
+                          )}
                         </span>
                       </span>
+                      {(fotosPorRdo.get(r.id)?.length ?? 0) > 0 && (
+                        <span className="hidden shrink-0 -space-x-3 sm:flex">
+                          {fotosPorRdo.get(r.id)!.slice(0, 3).map((f) => (
+                            <ImagemAssinada key={f.id} caminho={f.thumb_path} alt="" className="size-12 rounded-md ring-2 ring-white shadow-suave" />
+                          ))}
+                        </span>
+                      )}
                     </Link>
                     <div className="flex items-center gap-2 self-end sm:self-auto">
                       <Botao variante="secundario" tamanho="p" icone={<FileDown className="size-3.5" />} carregando={baixando === r.id} onClick={() => void pdf(r.id)}>PDF</Botao>

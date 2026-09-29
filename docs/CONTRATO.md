@@ -216,4 +216,5 @@ Para as políticas (calculadas uma vez por consulta): `empresa_da_equipe()`, `em
 
 ### Ambiente local
 - Usuário demo extra: `mestre@construtoraaurora.com.br` (colaborador, "Antônio Lima").
-- A carga demo (`supabase/seed/demo.sql`) não tem fotos (não há imagens no repositório); suba pela tela.
+- A carga demo (`supabase/seed/demo.sql`) não tem fotos; no ambiente local, `ferramentas/local/subir.sh` sobe em seguida as fotos e capas de `ferramentas/local/fotos-demo/` (ilustrações de obra em WebP, geradas por `gerar.mjs`) pelo mesmo caminho do app (`carregar.mjs`).
+- `ferramentas/local/fumaca.mjs` apaga no fim tudo o que criou (inclusive as linhas de histórico), para a demo continuar limpa.

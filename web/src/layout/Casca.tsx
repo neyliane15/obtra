@@ -80,7 +80,7 @@ function Navegacao({ aoNavegar }: { aoNavegar?: () => void }) {
     <nav className="flex flex-col gap-4" aria-label="Principal">
       {grupos.map((g) => (
         <div key={g}>
-          <p className="mb-1 flex items-center gap-2 px-3 font-mono text-[9px] tracking-[0.2em] text-marinho-300/55 uppercase">
+          <p className="mb-1 flex items-center gap-2 px-3 font-mono text-[9px] tracking-[0.2em] text-marinho-300/75 uppercase">
             {GRUPOS[g]}
             <span className="h-px flex-1 border-t border-dashed border-white/10" />
           </p>
@@ -155,7 +155,7 @@ function UsoArmazenamento() {
     <div className="rounded-lg border border-dashed border-white/12 px-3 py-2.5">
       <div className="mb-1.5 flex items-center justify-between font-mono text-[9.5px] tracking-wider text-marinho-300/80 uppercase">
         <span>Armazenamento</span>
-        <span className="num">{pct.toFixed(0)}%</span>
+        <span className="num">{usado > 0 && pct < 1 ? '<1' : pct.toFixed(0)}%</span>
       </div>
       <div className="h-1 overflow-hidden rounded-full bg-white/10">
         <div className={clsx('h-full rounded-full', pct > 90 ? 'bg-perigo-600' : pct > 70 ? 'bg-ambar-500' : 'bg-marinho-400')} style={{ width: `${pct}%` }} />

@@ -103,3 +103,8 @@ export function lerNumero(v: string | number | null | undefined): number | null 
   const n = Number(s)
   return Number.isFinite(n) ? n : null
 }
+
+/** 1 → "1 foto", 3 → "3 fotos". Plural irregular no 3º argumento. */
+export function plural(n: number, singular: string, pluralForma = `${singular}s`): string {
+  return `${n.toLocaleString('pt-BR')} ${n === 1 ? singular : pluralForma}`
+}

@@ -470,6 +470,7 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
             vazio="Nenhuma atividade registrada."
             cabecalho={['Descrição', 'Situação', 'Progresso']}
             colunas="md:grid-cols-[1fr_150px_180px_32px]"
+            celular="grid-cols-2 [&>*:first-child]:col-span-2 md:[&>*:first-child]:col-span-1"
             aoRemover={(i) => setLista('atividades', (l) => l.filter((_, j) => j !== i))}
             botoes={editavel && <BotaoLinha onClick={() => setLista('atividades', (l) => [...l, { id: novoId(), relatorio_id: relId, ordem: l.length, descricao: '', status: 'em_andamento', progresso: 0 }])}>Adicionar atividade</BotaoLinha>}
             renderizar={(a, i) => {
@@ -555,6 +556,7 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
             vazio="Nenhuma nota registrada."
             cabecalho={['Fornecedor', 'Nº da nota', 'Valor (R$)', 'Descrição']}
             colunas="md:grid-cols-[1fr_120px_130px_1.2fr_32px]"
+            celular="grid-cols-2"
             aoRemover={(i) => setLista('notas', (l) => l.filter((_, j) => j !== i))}
             botoes={editavel && <BotaoLinha onClick={() => setLista('notas', (l) => [...l, { id: novoId(), relatorio_id: relId, ordem: l.length, fornecedor: '', numero_nota: '', valor: null, descricao: '' }])}>Adicionar nota</BotaoLinha>}
             renderizar={(n, i) => {
@@ -600,7 +602,8 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
       <div className={clsx('pb-seguro fixed inset-x-0 z-40 border-t border-linha bg-white/95 backdrop-blur', portal ? 'bottom-0' : 'bottom-14 lg:bottom-0 lg:left-[248px]')}>
         <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-2 px-4 py-2.5 sm:px-6 lg:px-9">
           <div className="flex min-w-0 items-center gap-2">
-            <Selo tom={st.tom}>{st.rotulo}</Selo>
+            <Selo tom={st.tom} className="max-sm:hidden">{st.rotulo}</Selo>
+            <span className={clsx('size-2.5 rounded-full sm:hidden', st.tom === 'ok' ? 'bg-ok-600' : st.tom === 'marinho' ? 'bg-marinho-500' : 'bg-tinta-fraca')} title={st.rotulo} aria-label={st.rotulo} />
             {sujo && <span className="hidden items-center gap-1.5 text-[11.5px] text-tinta-suave sm:flex"><span className="size-1.5 rounded-full bg-ambar-500" /> não salvo</span>}
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
@@ -684,7 +687,7 @@ function BotaoLinha({ onClick, children, icone }: { onClick: () => void; childre
 }
 
 function Linhas<T extends { id: string }>({
-  itens, editavel, vazio, aoRemover, renderizar, cabecalho, colunas, botoes,
+  itens, editavel, vazio, aoRemover, renderizar, cabecalho, colunas, botoes, celular = 'grid-cols-1',
 }: {
   itens: T[]
   editavel: boolean
@@ -693,6 +696,8 @@ function Linhas<T extends { id: string }>({
   renderizar: (item: T, i: number) => ReactNode
   cabecalho: string[]
   colunas: string
+  /** grade no celular (as colunas "md:" valem do tablet em diante) */
+  celular?: string
   botoes?: ReactNode
 }) {
   return (
@@ -704,7 +709,7 @@ function Linhas<T extends { id: string }>({
           </div>
           <ul className="divide-y divide-linha">
             {itens.map((it, i) => (
-              <li key={it.id} className={clsx('relative grid items-center gap-2 px-3 py-2 text-[13px] md:gap-2.5', colunas, editavel && 'pr-10 md:pr-3')}>
+              <li key={it.id} className={clsx('relative grid items-center gap-2 px-3 py-2 text-[13px] md:gap-2.5', editavel && celular, colunas, editavel && 'pr-10 md:pr-3')}>
                 {renderizar(it, i)}
                 {editavel ? (
                   <button type="button" onClick={() => aoRemover(i)} className="absolute top-2 right-2 flex size-7 items-center justify-center rounded-md text-tinta-fraca hover:bg-perigo-50 hover:text-perigo-600 md:static" aria-label="Remover linha">
@@ -791,6 +796,7 @@ function SecaoMaoObra({ itens, editavel, empresaId, relId, setLista, total }: { 
         vazio="Nenhum item adicionado."
         cabecalho={['Colaborador', 'Função', 'Vínculo', 'Qtd.']}
         colunas="md:grid-cols-[1fr_1fr_230px_76px_32px]"
+        celular="grid-cols-2"
         aoRemover={(i) => setLista('maoObra', (l) => l.filter((_, j) => j !== i))}
         botoes={
           editavel && (
@@ -957,6 +963,7 @@ function SecaoEquipamentos({ itens, editavel, empresaId, relId, setLista }: { it
         vazio="Nenhum equipamento registrado."
         cabecalho={['Equipamento', 'Qtd.']}
         colunas="md:grid-cols-[1fr_90px_32px]"
+        celular="grid-cols-[1fr_76px]"
         aoRemover={(i) => setLista('equipamentos', (l) => l.filter((_, j) => j !== i))}
         botoes={editavel && <BotaoLinha onClick={() => setLista('equipamentos', (l) => [...l, { id: novoId(), relatorio_id: relId, ordem: l.length, equipamento_id: null, nome: '', quantidade: 1 }])}>Adicionar equipamento</BotaoLinha>}
         renderizar={(m, i) => {
@@ -1017,6 +1024,7 @@ function SecaoMateriais({
         vazio="Nenhum item adicionado."
         cabecalho={['Material', 'Quantidade', 'Unidade']}
         colunas="md:grid-cols-[1fr_120px_110px_32px]"
+        celular="grid-cols-2 [&>*:first-child]:col-span-2 md:[&>*:first-child]:col-span-1"
         aoRemover={(i) => {
           const alvo = itens[i]
           if (alvo) setLista('materiais', (l) => l.filter((x) => x.id !== alvo.id))
@@ -1100,7 +1108,7 @@ function FotosRelatorio({ relatorioId, obraId, empresaId, editavel }: { relatori
 }
 
 /* ----------------------------------------------------------- comentários */
-function Comentarios({ relatorioId, podeComentar }: { relatorioId: string; podeComentar: boolean }) {
+export function Comentarios({ relatorioId, podeComentar }: { relatorioId: string; podeComentar: boolean }) {
   const perfil = usePerfil()
   const { ehMaster } = useSessao()
   const avisos = useAvisos()

@@ -8,7 +8,7 @@ import { useCadastro, type MapaCadastros, type TabelaCadastro } from '@/lib/cons
 import { usePerfil, useSessao } from '@/lib/sessao'
 import { ehGestor } from '@/lib/permissoes'
 import { supabase, mensagemDeErro } from '@/lib/supabase'
-import { normalizar } from '@/lib/formato'
+import { normalizar, plural } from '@/lib/formato'
 import { TIPO_MAO_OBRA, UNIDADES } from '@/lib/rotulos'
 import { Botao, CabecalhoPagina, Campo, CampoTexto, Erro, Esqueleto, Interruptor, Modal, Selecao, Selo, Vazio } from '@/componentes/ui'
 import { PrecisaEmpresa } from '@/componentes/PrecisaEmpresa'
@@ -125,7 +125,7 @@ function PaginaCadastro({ rota }: { rota: Rota }) {
       <CabecalhoPagina
         sobretitulo="Cadastros"
         titulo={cfg.titulo}
-        subtitulo={`${total} ativo(s) · ${cfg.descricao}`}
+        subtitulo={`${plural(total, 'ativo')} · ${cfg.descricao}`}
         acoes={<Botao variante="ambar" icone={<Plus className="size-4" />} onClick={() => setEditando('novo')}>Novo {cfg.singular}</Botao>}
       />
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -156,7 +156,7 @@ function PaginaCadastro({ rota }: { rota: Rota }) {
                 <tr className="border-b border-linha bg-papel/80">
                   {colunas.map((c) => <th key={c.chave} scope="col" className="rotulo px-4 py-2.5 !text-[9.5px] font-semibold">{c.rotulo}</th>)}
                   <th scope="col" className="rotulo px-4 py-2.5 !text-[9.5px] font-semibold">Situação</th>
-                  <th scope="col"><span className="sr-only">Ações</span></th>
+                  <th scope="col" className="rotulo px-4 py-2.5 pr-5 text-right !text-[9.5px] font-semibold">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-linha">
