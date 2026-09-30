@@ -28,7 +28,7 @@ test.describe('Administrador', () => {
     await d.locator('input[type=file]').setInputFiles(await fotoJpeg(page, 2400, 1600, 0.9, 'capa.jpg'))
     await expect(d.getByAltText('Prévia da capa')).toBeVisible()
     await campo(d, 'Nome da obra').fill(nome)
-    await campo(d, 'Código').fill(`OB-${s}`)
+    await expect(campo(d, 'Nº da obra')).toHaveValue('Automático')
     await campo(d, 'Contratante').fill('Contratante Teste Ltda')
     await campo(d, 'Responsável técnico').fill('Eng. Teste — CREA 123')
     await campo(d, 'Cidade').fill('Sorocaba')
@@ -42,11 +42,13 @@ test.describe('Administrador', () => {
     const id = page.url().split('/').pop()!
     await expect(page.getByRole('heading', { name: nome })).toBeVisible()
     await expect(page.getByAltText(`Capa da obra ${nome}`)).toBeVisible()
-    const obra = await um<{ capa_path: string; capa_thumb_path: string; previsao_termino: string; prazo_dias: number }>(
-      "select capa_path, capa_thumb_path, to_char(previsao_termino, 'YYYY-MM-DD') previsao_termino, prazo_dias from obras where id = $1",
+    const obra = await um<{ capa_path: string; capa_thumb_path: string; previsao_termino: string; prazo_dias: number; codigo: string; numero: number }>(
+      "select capa_path, capa_thumb_path, to_char(previsao_termino, 'YYYY-MM-DD') previsao_termino, prazo_dias, codigo, numero from obras where id = $1",
       [id],
     )
     expect(obra.prazo_dias).toBe(120)
+    expect(obra.numero).toBeGreaterThan(0)
+    expect(obra.codigo).toBe(`OB-${String(obra.numero).padStart(3, '0')}`)
     expect(obra.previsao_termino).toBe('2026-12-30')
     expect(obra.capa_path).toMatch(new RegExp(`^${AURORA}/${id}/capa/.+\\.webp$`))
     expect(existeNoStorage(obra.capa_path) && existeNoStorage(obra.capa_thumb_path)).toBe(true)

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import {
   ArrowLeft, CalendarClock, Camera, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, Clock, Cloud, CloudRain, Copy, FileDown,
@@ -344,6 +344,15 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
   const utilizados = e.materiais.filter((m) => m.tipo === 'utilizado')
   const st = STATUS_RELATORIO[status]
   const gestor = ehGestor(perfil.papel)
+  // Novo RDO: mostra o número que a obra vai dar (o banco numera de verdade ao salvar).
+  const proximoNumero = useQuery({
+    queryKey: ['proximo-numero-rdo', e.obraId],
+    enabled: novo && !!e.obraId,
+    queryFn: async () => {
+      const d = exigir(await supabase.from('relatorios').select('numero').eq('obra_id', e.obraId).order('numero', { ascending: false }).limit(1))
+      return (d[0]?.numero ?? 0) + 1
+    },
+  })
   const obrasSelecionaveis = (obras.data ?? []).filter((x) => x.status !== 'concluida' || x.id === e.obraId)
 
   return (
@@ -379,8 +388,8 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
         {/* 01 cabeçalho */}
         <Painel n="01" titulo="Cabeçalho do Relatório" icone={<FileText />}>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-            <Campo rotulo="Nº do relatório">
-              <Entrada readOnly value={r ? codigoRelatorio(r.numero) : 'RD-—'} className="num font-mono" tabIndex={-1} />
+            <Campo rotulo="Nº do relatório" dica={novo ? 'Automático, por obra' : undefined}>
+              <Entrada readOnly value={r ? codigoRelatorio(r.numero) : proximoNumero.data ? codigoRelatorio(proximoNumero.data) : e.obraId ? 'RD-…' : 'Escolha a obra'} className="num font-mono" tabIndex={-1} />
             </Campo>
             <Campo rotulo="Obra" htmlFor="rdo-obra" obrigatorio={novo}>
               {novo ? (

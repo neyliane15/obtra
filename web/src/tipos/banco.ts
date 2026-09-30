@@ -49,6 +49,7 @@ export interface Obra {
   id: string
   empresa_id: string
   nome: string
+  numero: number | null
   codigo: string | null
   endereco: string | null
   cidade: string | null

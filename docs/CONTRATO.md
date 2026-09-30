@@ -223,3 +223,8 @@ Para as políticas (calculadas uma vez por consulta): `empresa_da_equipe()`, `em
 - Usuário demo extra: `mestre@construtoraaurora.com.br` (colaborador, "Antônio Lima").
 - A carga demo (`supabase/seed/demo.sql`) não tem fotos; no ambiente local, `ferramentas/local/subir.sh` sobe em seguida as fotos e capas de `ferramentas/local/fotos-demo/` (ilustrações de obra em WebP, geradas por `gerar.mjs`) pelo mesmo caminho do app (`carregar.mjs`).
 - `ferramentas/local/fumaca.mjs` apaga no fim tudo o que criou (inclusive as linhas de histórico), para a demo continuar limpa.
+
+### Numeração automática (migração 0008)
+- `obras.numero int`: sequencial **por empresa**, preenchido por gatilho (`obras_numerar`) no insert e imutável depois; `unique(empresa_id, numero)`.
+- `obras.codigo`: se vier vazio, o banco grava `OB-` + número com 3 dígitos (`OB-001`). O formulário não pede mais o código (mostra "Automático" / o código gerado). Obras antigas foram numeradas pela ordem de criação; códigos já digitados foram mantidos.
+- RDO: `relatorios.numero` continua sequencial **por obra** (gatilho `relatorios_antes`, ignora o número enviado). Na tela "Novo RDO", ao escolher a obra, o campo mostra o próximo número (`RD-n`) antes de salvar.

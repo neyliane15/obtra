@@ -8,7 +8,7 @@ import { useSessao } from '@/lib/sessao'
 import { enviarCapa, removerArquivos } from '@/lib/armazenamento'
 import { previsaoPorPrazo } from '@/lib/prazo'
 import { STATUS_OBRA, UFS } from '@/lib/rotulos'
-import { AreaTexto, Botao, Campo, CampoData, CampoTexto, Modal, Selecao } from './ui'
+import { AreaTexto, Botao, Campo, CampoData, Entrada, CampoTexto, Modal, Selecao } from './ui'
 import { ImagemAssinada } from './midia'
 import { useAvisos } from './avisos'
 
@@ -101,7 +101,6 @@ export function FormularioObra({
 
     const dados = {
       nome: f.nome.trim(),
-      codigo: nulo(f.codigo),
       status: f.status,
       endereco: nulo(f.endereco),
       cidade: nulo(f.cidade),
@@ -219,7 +218,9 @@ export function FormularioObra({
           </Campo>
         )}
         <CampoTexto rotulo="Nome da obra" obrigatorio value={f.nome} onChange={(e) => mudar('nome', e.target.value)} erro={erros.nome} className="sm:col-span-4" placeholder="Residencial Vista Azul" />
-        <CampoTexto rotulo="Código" value={f.codigo} onChange={(e) => mudar('codigo', e.target.value)} className="sm:col-span-2" placeholder="OB-024" />
+        <Campo rotulo="Nº da obra" htmlFor="ob-num" dica={obra ? undefined : 'Gerado automaticamente'} className="sm:col-span-2">
+          <Entrada id="ob-num" readOnly tabIndex={-1} value={obra?.codigo ?? 'Automático'} className="num font-mono text-tinta-suave" />
+        </Campo>
         <Campo rotulo="Status" className="sm:col-span-2" htmlFor="ob-st">
           <Selecao id="ob-st" value={f.status} onChange={(e) => mudar('status', e.target.value as StatusObra)}>
             {(Object.keys(STATUS_OBRA) as StatusObra[]).map((s) => <option key={s} value={s}>{STATUS_OBRA[s].rotulo}</option>)}
