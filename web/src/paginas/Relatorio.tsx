@@ -147,6 +147,11 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
   const obra = useObra(e.obraId || undefined)
   const lista = useRelatorios(r?.obra_id)
   const o = obra.data
+  const { empresaId: empresaSessao } = useSessao()
+  // Empresa da obra escolhida: várias fontes, para nunca travar um envio porque
+  // uma consulta ainda não voltou (ou falhou) — o banco confere de qualquer jeito.
+  const empresaDaObra =
+    o?.empresa_id ?? obras.data?.find((x) => x.id === e.obraId)?.empresa_id ?? r?.empresa_id ?? (perfil.empresa_id || empresaSessao) ?? undefined
 
   const vizinhos = useMemo(() => {
     const l = lista.data ?? []
@@ -243,7 +248,7 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
       const id = editavel && (sujo || novo) ? await gravar() : (r?.id ?? null)
       if (!id) return
       if (novo && pendentes.length) {
-        const empresaId = o?.empresa_id ?? obras.data?.find((x) => x.id === e.obraId)?.empresa_id
+        const empresaId = empresaDaObra
         const p: ProgressoEnvio = { total: pendentes.length, feitos: 0, falhas: 0 }
         setEnvioPendentes({ ...p })
         let ultimoErro: unknown = null
@@ -604,7 +609,7 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
                   <Entrada value={n.numero_nota ?? ''} onChange={(ev) => up({ numero_nota: ev.target.value })} placeholder="000123" className="font-mono" aria-label="Número da nota" />
                   <Entrada inputMode="decimal" value={n.valor === null ? '' : String(n.valor)} onChange={(ev) => up({ valor: ev.target.value === '' ? null : ev.target.value })} onBlur={(ev) => up({ valor: lerNumero(ev.target.value) })} placeholder="0,00" className="num text-right" aria-label="Valor" />
                   <Entrada value={n.descricao ?? ''} onChange={(ev) => up({ descricao: ev.target.value })} placeholder="Descrição" aria-label="Descrição da nota" />
-                  <AnexosNota nota={n} editavel empresaId={o?.empresa_id} obraId={e.obraId} aoMudar={up} />
+                  <AnexosNota nota={n} editavel empresaId={empresaDaObra} obraId={e.obraId} aoMudar={up} />
                 </>
               ) : (
                 <>
@@ -612,7 +617,7 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
                   <span className="font-mono text-[12px]">{n.numero_nota || '—'}</span>
                   <span className="num text-right font-semibold">{formatarMoeda(lerNumero(n.valor as string | number | null))}</span>
                   <span className="text-tinta-suave">{n.descricao}</span>
-                  <AnexosNota nota={n} editavel={false} empresaId={o?.empresa_id} obraId={e.obraId} aoMudar={up} />
+                  <AnexosNota nota={n} editavel={false} empresaId={empresaDaObra} obraId={e.obraId} aoMudar={up} />
                 </>
               )
             }}
@@ -1162,6 +1167,7 @@ function AnexosNota({ nota, editavel, empresaId, obraId, aoMudar }: {
   }
 
   const escolher = (tipo: 'pdf' | 'foto') => {
+    if (!pronto) return avisos.erro('Escolha a obra no Cabeçalho do Relatório antes de anexar.')
     const i = document.createElement('input')
     i.type = 'file'
     i.accept = tipo === 'pdf' ? 'application/pdf' : 'image/*'
@@ -1180,7 +1186,7 @@ function AnexosNota({ nota, editavel, empresaId, obraId, aoMudar }: {
           {editavel && <button type="button" onClick={() => void tirar('pdf')} className="text-tinta-fraca hover:text-perigo-600" aria-label="Remover PDF da nota"><X className="size-3" /></button>}
         </span>
       ) : editavel ? (
-        <button type="button" disabled={!pronto || !!enviando} onClick={() => escolher('pdf')} aria-label="Anexar PDF da nota" className={clsx(chip, 'border-dashed border-linha-forte text-tinta-suave hover:border-marinho-400 hover:text-marinho-800 disabled:opacity-50')} title={pronto ? 'Anexar o PDF da nota' : 'Escolha a obra primeiro'}>
+        <button type="button" disabled={!!enviando} onClick={() => escolher('pdf')} aria-label="Anexar PDF da nota" className={clsx(chip, 'border-dashed border-linha-forte text-tinta-suave hover:border-marinho-400 hover:text-marinho-800 disabled:opacity-50')} title={pronto ? 'Anexar o PDF da nota' : 'Escolha a obra primeiro'}>
           {enviando === 'pdf' ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />} PDF
         </button>
       ) : null}
@@ -1192,7 +1198,7 @@ function AnexosNota({ nota, editavel, empresaId, obraId, aoMudar }: {
           {editavel && <button type="button" onClick={() => void tirar('foto')} className="text-tinta-fraca hover:text-perigo-600" aria-label="Remover foto da nota"><X className="size-3" /></button>}
         </span>
       ) : editavel ? (
-        <button type="button" disabled={!pronto || !!enviando} onClick={() => escolher('foto')} aria-label="Anexar foto da nota" className={clsx(chip, 'border-dashed border-linha-forte text-tinta-suave hover:border-marinho-400 hover:text-marinho-800 disabled:opacity-50')} title={pronto ? 'Anexar a foto da nota' : 'Escolha a obra primeiro'}>
+        <button type="button" disabled={!!enviando} onClick={() => escolher('foto')} aria-label="Anexar foto da nota" className={clsx(chip, 'border-dashed border-linha-forte text-tinta-suave hover:border-marinho-400 hover:text-marinho-800 disabled:opacity-50')} title={pronto ? 'Anexar a foto da nota' : 'Escolha a obra primeiro'}>
           {enviando === 'foto' ? <Loader2 className="size-3.5 animate-spin" /> : <Camera className="size-3.5" />} Foto
         </button>
       ) : null}
