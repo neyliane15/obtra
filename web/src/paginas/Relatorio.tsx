@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import {
   ArrowLeft, CalendarClock, Camera, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, Clock, Cloud, CloudRain, Copy, FileDown,
   FileText, Hammer, MessageSquare, Moon, PackageCheck, PackageMinus, Plus, Receipt, Save, Send, ShieldAlert, StickyNote, Sun, Sunrise,
-  Sunset, Trash2, Truck, Undo2, UserPlus, Users,
+  Sunset, Trash2, Truck, Undo2, UserPlus, Users, X,
 } from 'lucide-react'
 import type {
   Atividade, Clima, Condicao, Equipamento, Foto, MaoObra, Material, NotaCompra, Ocorrencia, StatusAtividade,
@@ -19,17 +19,17 @@ import {
 import { usePerfil, useSessao } from '@/lib/sessao'
 import { ehGestor, podeEditarRelatorio } from '@/lib/permissoes'
 import { supabase, exigir, mensagemDeErro } from '@/lib/supabase'
-import { excluirFoto } from '@/lib/armazenamento'
+import { enviarFoto, excluirFoto } from '@/lib/armazenamento'
 import { calcularPrazo } from '@/lib/prazo'
 import { formatarDuracao, minutosTrabalhados } from '@/lib/horario'
 import {
-  capitalizar, codigoRelatorio, diaDaSemana, formatarData, formatarDataExtensa, formatarMoeda, formatarRelativo, hojeISO, lerNumero,
+  capitalizar, codigoRelatorio, diaDaSemana, formatarData, formatarDataExtensa, formatarMoeda, formatarRelativo, hojeISO, lerNumero, plural,
 } from '@/lib/formato'
 import {
   CLIMA, CONDICAO, PAPEL, STATUS_ATIVIDADE, STATUS_RELATORIO, TIPO_MAO_OBRA, TIPO_OCORRENCIA, UNIDADES,
 } from '@/lib/rotulos'
 import { AreaTexto, Avatar, Botao, CampoHora, CampoTexto, EntradaData, CarregandoPagina, Entrada, Erro, Modal, Selecao, Selo, Vazio, Campo } from '@/componentes/ui'
-import { EnvioDeFotos, Galeria } from '@/componentes/midia'
+import { EnvioDeFotos, Galeria, type ProgressoEnvio } from '@/componentes/midia'
 import { useAvisos } from '@/componentes/avisos'
 import { useTitulo } from '@/lib/titulo'
 
@@ -139,7 +139,11 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
   const [base, setBase] = useState(() => estadoDe(dados, params.get('obra') ?? '', perfil.nome))
   const [e, setE] = useState(base)
   const [ocupado, setOcupado] = useState<null | 'salvar' | 'revisar' | 'aprovar' | 'preenchendo' | 'pdf'>(null)
-  const sujo = useMemo(() => JSON.stringify(e) !== JSON.stringify(base), [e, base])
+  // RDO novo: as fotos escolhidas esperam aqui (comprimidas só no envio) e sobem
+  // junto com o primeiro salvamento — ninguém precisa salvar antes de anexar.
+  const [pendentes, setPendentes] = useState<FotoPendente[]>([])
+  const [envioPendentes, setEnvioPendentes] = useState<ProgressoEnvio | null>(null)
+  const sujo = useMemo(() => JSON.stringify(e) !== JSON.stringify(base), [e, base]) || pendentes.length > 0
   const obra = useObra(e.obraId || undefined)
   const lista = useRelatorios(r?.obra_id)
   const o = obra.data
@@ -238,6 +242,29 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
     try {
       const id = editavel && (sujo || novo) ? await gravar() : (r?.id ?? null)
       if (!id) return
+      if (novo && pendentes.length) {
+        const empresaId = o?.empresa_id ?? obras.data?.find((x) => x.id === e.obraId)?.empresa_id
+        const p: ProgressoEnvio = { total: pendentes.length, feitos: 0, falhas: 0 }
+        setEnvioPendentes({ ...p })
+        let ultimoErro: unknown = null
+        for (const f of pendentes) {
+          try {
+            if (!empresaId) throw new Error('Empresa da obra não encontrada.')
+            await enviarFoto(f.arquivo, { empresaId, obraId: e.obraId, relatorioId: id, legenda: f.legenda.trim() || null })
+            p.feitos++
+          } catch (err) {
+            p.falhas++
+            ultimoErro = err
+          }
+          setEnvioPendentes({ ...p })
+        }
+        for (const f of pendentes) URL.revokeObjectURL(f.url)
+        setPendentes([])
+        if (ultimoErro) {
+          avisos.erro(ultimoErro)
+          avisos.erro(`${plural(p.falhas, 'foto não foi enviada', 'fotos não foram enviadas')}. Abra o relatório e anexe de novo.`)
+        }
+      }
       const alvo: StatusRelatorio | null = tipo === 'revisar' ? 'revisar' : tipo === 'aprovar' ? 'aprovado' : tipo === 'preenchendo' ? 'preenchendo' : null
       if (alvo && alvo !== status) {
         const { error } = await supabase.rpc('mudar_status_relatorio', { p_relatorio: id, p_status: alvo })
@@ -594,8 +621,8 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
         {r ? (
           <FotosRelatorio relatorioId={r.id} obraId={r.obra_id} empresaId={r.empresa_id} editavel={editavel} />
         ) : (
-          <Painel n="13" titulo="Galeria de Fotos" icone={<Camera />} contagem={0} inicialAberto={false}>
-            <p className="text-[12px] text-tinta-fraca">Salve o rascunho para anexar fotos.</p>
+          <Painel n="13" titulo="Galeria de Fotos" icone={<Camera />} contagem={pendentes.length} inicialAberto>
+            <FotosPendentes pendentes={pendentes} setPendentes={setPendentes} progresso={envioPendentes} />
           </Painel>
         )}
 
@@ -1076,6 +1103,74 @@ function SecaoMateriais({
 }
 
 /* ---------------------------------------------------------------- fotos */
+interface FotoPendente {
+  id: string
+  arquivo: File
+  url: string
+  legenda: string
+}
+
+/** Fotos escolhidas num RDO que ainda não foi salvo: sobem junto com o primeiro salvamento. */
+function FotosPendentes({ pendentes, setPendentes, progresso }: {
+  pendentes: FotoPendente[]
+  setPendentes: (f: (l: FotoPendente[]) => FotoPendente[]) => void
+  progresso: ProgressoEnvio | null
+}) {
+  const urls = useRef<string[]>([])
+  urls.current = pendentes.map((f) => f.url)
+  useEffect(() => () => urls.current.forEach((u) => URL.revokeObjectURL(u)), [])
+  function tirar(id: string) {
+    setPendentes((l) => {
+      const f = l.find((x) => x.id === id)
+      if (f) URL.revokeObjectURL(f.url)
+      return l.filter((x) => x.id !== id)
+    })
+  }
+  return (
+    <div className="flex flex-col gap-3">
+      <EnvioDeFotos
+        compacto
+        rotulo="Adicionar fotos"
+        progresso={progresso}
+        aoEnviar={(arqs) => setPendentes((l) => [...l, ...arqs.map((a) => ({ id: novoId(), arquivo: a, url: URL.createObjectURL(a), legenda: '' }))])}
+      />
+      {pendentes.length > 0 && (
+        <>
+          <p className="text-[12px] text-tinta-suave">
+            {plural(pendentes.length, 'foto será enviada', 'fotos serão enviadas')} ao salvar o relatório (comprimidas no aparelho).
+          </p>
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {pendentes.map((f) => (
+              <li key={f.id} className="overflow-hidden rounded-lg border border-linha bg-white">
+                <div className="relative aspect-[4/3] bg-papel">
+                  <img src={f.url} alt={f.legenda || f.arquivo.name} className="size-full object-cover" />
+                  <span className="absolute top-1.5 left-1.5 rounded bg-ambar-500/90 px-1.5 py-0.5 font-mono text-[9.5px] font-semibold tracking-wider text-marinho-950 uppercase">a enviar</span>
+                  <button
+                    type="button"
+                    onClick={() => tirar(f.id)}
+                    className="absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-full bg-marinho-950/70 text-white hover:bg-perigo-600"
+                    aria-label={`Tirar ${f.arquivo.name}`}
+                    title="Tirar foto"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+                <input
+                  className="w-full border-t border-linha px-2.5 py-2 text-[12px] outline-none placeholder:text-tinta-fraca focus:bg-marinho-50/40"
+                  placeholder="Adicionar legenda…"
+                  value={f.legenda}
+                  onChange={(ev) => setPendentes((l) => l.map((x) => (x.id === f.id ? { ...x, legenda: ev.target.value } : x)))}
+                  aria-label={`Legenda de ${f.arquivo.name}`}
+                />
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  )
+}
+
 function FotosRelatorio({ relatorioId, obraId, empresaId, editavel }: { relatorioId: string; obraId: string; empresaId: string; editavel: boolean }) {
   const avisos = useAvisos()
   const qc = useQueryClient()

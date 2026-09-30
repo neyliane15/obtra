@@ -152,8 +152,16 @@ test.describe.serial('RDO de ponta a ponta', () => {
     await nota.getByLabel('Descrição da nota').fill('Cimento e areia')
     await expect(nc.getByText('R$ 1.530,50')).toBeVisible()
 
-    // 13 fotos: só depois de salvar
-    await expect((await abrirSecao(page, 'Galeria de Fotos')).getByText('Salve o rascunho para anexar fotos.')).toBeVisible()
+    // 13 fotos: anexadas ANTES de salvar (sobem junto com o primeiro salvamento)
+    const galNova = await abrirSecao(page, 'Galeria de Fotos')
+    await galNova.locator('input[type=file]').setInputFiles([
+      await fotoJpeg(page, 1800, 1200, 0.9, 'laje.jpg'),
+      await fotoJpeg(page, 1200, 900, 0.9, 'sobra.jpg'),
+    ])
+    await expect(galNova.getByText('2 fotos serão enviadas ao salvar o relatório (comprimidas no aparelho).')).toBeVisible()
+    await galNova.getByRole('button', { name: 'Tirar sobra.jpg' }).click()
+    await expect(galNova.getByText('1 foto será enviada ao salvar o relatório (comprimidas no aparelho).')).toBeVisible()
+    await galNova.getByLabel('Legenda de laje.jpg').fill('Laje concretada — vista do eixo B')
 
     // salvar rascunho
     await page.getByRole('button', { name: 'Salvar Rascunho', exact: true }).click()
@@ -163,13 +171,9 @@ test.describe.serial('RDO de ponta a ponta', () => {
     rdoNumero = (await um<{ numero: number }>('select numero from relatorios where id = $1', [rdoId])).numero
     await expect(page.getByRole('heading', { name: `Relatório Diário · RD-${rdoNumero}` })).toBeVisible()
 
-    // fotos com legenda
-    const gal = await abrirSecao(page, 'Galeria de Fotos')
-    await gal.locator('input[type=file]').setInputFiles(await fotoJpeg(page, 1800, 1200, 0.9, 'laje.jpg'))
-    await expect(gal.getByText('1 foto enviada')).toBeVisible()
-    await gal.getByLabel('Legenda da foto').fill('Laje concretada — vista do eixo B')
-    await gal.getByLabel('Legenda da foto').blur()
-    await expect.poll(async () => (await sql('select legenda from fotos where relatorio_id = $1', [rdoId]))[0]?.legenda).toBe('Laje concretada — vista do eixo B')
+    // a foto anexada antes de salvar subiu com a legenda, ligada ao RDO criado
+    await expect.poll(async () => await sql('select legenda from fotos where relatorio_id = $1', [rdoId])).toEqual([{ legenda: 'Laje concretada — vista do eixo B' }])
+    await expect(secao(page, 'Galeria de Fotos').getByLabel('Legenda da foto')).toHaveValue('Laje concretada — vista do eixo B')
 
     // comentário da equipe
     const com2 = await abrirSecao(page, 'Comentários')
