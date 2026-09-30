@@ -1,7 +1,12 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
-const chave = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+import { normalizarChave, normalizarUrlSupabase } from './configuracao'
+
+// Normalizadas: quem cola a URL do painel costuma trazer "/rest/v1/", barra no
+// fim, aspas ou espaço — e o Supabase responde "Invalid path specified in
+// request URL" no login, sem dizer por quê.
+const url = normalizarUrlSupabase(import.meta.env.VITE_SUPABASE_URL as string | undefined)
+const chave = normalizarChave(import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)
 
 /** Falta de configuração vira tela amigável (ver App), não tela branca. */
 export const configuracaoAusente = !url || !chave
@@ -18,6 +23,8 @@ export function mensagemDeErro(e: unknown): string {
   if (typeof e === 'string') return e
   if (typeof e === 'object' && e !== null && 'message' in e) {
     const m = String((e as { message: unknown }).message)
+    if (/Invalid path specified in request URL|Invalid API key|No API key found/i.test(m))
+      return 'O site está mal configurado: confira VITE_SUPABASE_URL (só https://SEU-PROJETO.supabase.co) e VITE_SUPABASE_ANON_KEY na Vercel e faça Redeploy.'
     if (/Invalid login credentials/i.test(m)) return 'E-mail ou senha incorretos.'
     if (/Failed to fetch|NetworkError/i.test(m)) return 'Sem conexão com o servidor. Verifique sua internet.'
     if (/JWT expired/i.test(m)) return 'Sua sessão expirou. Entre novamente.'
