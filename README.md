@@ -89,6 +89,10 @@ Em **Project Settings → API** (ou **Data API**), copie:
    | `VITE_SUPABASE_URL` | a Project URL do passo 5 |
    | `VITE_SUPABASE_ANON_KEY` | a anon key do passo 5 |
 5. Clique **Deploy**. Em ~1 minuto você recebe o endereço `https://….vercel.app`.
+   - A Vercel pode parar numa tela de "integrações recomendadas" e criar o projeto **sem publicar**
+     ("No Production Deployment"). Nesse caso: **Deployments → Create Deployment** escolhendo a branch
+     do projeto, ou envie qualquer atualização (push) para essa branch — a Vercel publica sozinha.
+   - Não é preciso aceitar a integração da Supabase: as duas variáveis acima bastam.
 6. Volte ao passo 4 e preencha **Site URL** / **Redirect URLs** com esse endereço.
 7. (Opcional) Domínio próprio: Vercel → **Settings → Domains** → adicione `obtra.seudominio.com.br`
    e siga as instruções de DNS. Depois atualize também as URLs no Supabase.
