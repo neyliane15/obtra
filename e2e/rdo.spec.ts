@@ -411,11 +411,11 @@ test.describe.serial('RDO de ponta a ponta', () => {
     await page.getByRole('button', { name: 'Comentar' }).click()
     await expect(page.getByText(COMENTARIO_CLIENTE)).toBeVisible()
     await expect(page.getByText(COMENTARIO_EQUIPE)).toBeVisible()
-    const c = await um<{ papel: string }>(
+    // espera a gravação (a tela pode mostrar o texto uns milissegundos antes de a consulta direta o enxergar)
+    await expect.poll(async () => (await sql(
       'select p.papel from relatorio_comentarios c join perfis p on p.id = c.autor_id where c.relatorio_id = $1 and c.texto = $2',
       [rdoId, COMENTARIO_CLIENTE],
-    )
-    expect(c.papel).toBe('cliente')
+    ))[0]?.papel).toBe('cliente')
     await sair(page)
   })
 
