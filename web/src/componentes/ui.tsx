@@ -661,22 +661,22 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={idTitulo}
         className={clsx(
-          'anim-subir relative flex max-h-[92dvh] w-full flex-col rounded-t-xl bg-white shadow-flutuante sm:rounded-xl',
+          'cantoneiras anim-subir relative flex max-h-[92dvh] w-full flex-col rounded-t-2xl bg-white shadow-flutuante ring-1 ring-marinho-900/10 [--cor-cantoneira:var(--color-marinho-200)] sm:rounded-2xl',
           larg,
         )}
       >
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] rounded-t-xl bg-gradient-to-r from-marinho-900 via-marinho-600 to-marinho-900" />
-        <header className="flex items-start justify-between gap-4 border-b border-linha px-5 pt-5 pb-4">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] rounded-t-2xl bg-gradient-to-r from-marinho-900 via-marinho-600 to-marinho-900" />
+        <header className="flex items-start justify-between gap-5 border-b border-linha px-6 pt-7 pb-5 sm:px-8">
           <div className="min-w-0">
-            {codigo && <div className="mb-1 font-mono text-[10px] tracking-wider text-marinho-400">{codigo}</div>}
-            <h2 id={idTitulo} className="font-display text-[16px] font-bold text-marinho-900">{titulo}</h2>
-            {descricao && <p className="mt-1 text-[12.5px] text-tinta-suave">{descricao}</p>}
+            {codigo && <div className="mb-2 font-mono text-[10px] tracking-[0.14em] text-marinho-400">{codigo}</div>}
+            <h2 id={idTitulo} className="font-display text-[17px] font-bold leading-snug text-marinho-900">{titulo}</h2>
+            {descricao && <p className="mt-1.5 max-w-[46ch] text-[12.5px] leading-relaxed text-tinta-suave">{descricao}</p>}
           </div>
-          <Botao variante="fantasma" apenasIcone tamanho="p" onClick={aoFechar} aria-label="Fechar" icone={<X className="size-4" />} />
+          <Botao variante="fantasma" apenasIcone tamanho="p" onClick={aoFechar} aria-label="Fechar" icone={<X className="size-4" />} className="-mr-2 -mt-1" />
         </header>
-        <div data-corpo className="rolagem-fina flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div data-corpo className="rolagem-fina flex-1 overflow-y-auto px-6 py-6 sm:px-8">{children}</div>
         {rodape && (
-          <footer className="pb-seguro flex flex-wrap items-center justify-end gap-2 border-t border-linha bg-papel/60 px-5 py-3 sm:rounded-b-xl">
+          <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-linha bg-papel/60 px-6 pt-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:rounded-b-2xl sm:px-8 sm:pb-5">
             {rodape}
           </footer>
         )}
