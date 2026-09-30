@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import type { Locator, Page } from '@playwright/test'
 import { test, expect, entrar, aviso, modal, confirmar, irPeloMenu, campo, sair } from './apoio/teste'
 import { sql, um, sufixo, existeNoStorage, OBRA_VISTA_AZUL, OBRA_PAULISTA, API, ANON } from './apoio/ambiente'
-import { fotoJpeg, lerPdf } from './apoio/arquivos'
+import { fotoJpeg, lerPdf, pdfGordo } from './apoio/arquivos'
 
 /** Seção colapsável do RDO pelo título. */
 function secao(page: Page, titulo: string): Locator {
@@ -151,6 +151,17 @@ test.describe.serial('RDO de ponta a ponta', () => {
     await nota.getByLabel('Valor').blur()
     await nota.getByLabel('Descrição da nota').fill('Cimento e areia')
     await expect(nc.getByText('R$ 1.530,50')).toBeVisible()
+    // PDF e foto da nota, vinculados à nota
+    let seletor = page.waitForEvent('filechooser')
+    await nota.getByRole('button', { name: 'Anexar PDF da nota' }).click()
+    await (await seletor).setFiles(await pdfGordo('nota-000123.pdf', 2))
+    await expect(aviso(page, 'PDF da nota anexado.')).toBeVisible()
+    seletor = page.waitForEvent('filechooser')
+    await nota.getByRole('button', { name: 'Anexar foto da nota' }).click()
+    await (await seletor).setFiles(await fotoJpeg(page, 1600, 2200, 0.9, 'nota.jpg'))
+    await expect(aviso(page, 'Foto da nota anexada.')).toBeVisible()
+    await expect(nota.getByRole('button', { name: 'Remover PDF da nota' })).toBeVisible()
+    await expect(nota.getByRole('button', { name: 'Remover foto da nota' })).toBeVisible()
 
     // 13 fotos: anexadas ANTES de salvar (sobem junto com o primeiro salvamento)
     const galNova = await abrirSecao(page, 'Galeria de Fotos')
@@ -171,6 +182,12 @@ test.describe.serial('RDO de ponta a ponta', () => {
     rdoNumero = (await um<{ numero: number }>('select numero from relatorios where id = $1', [rdoId])).numero
     await expect(page.getByRole('heading', { name: `Relatório Diário · RD-${rdoNumero}` })).toBeVisible()
 
+    // a nota guardou os dois anexos (documentos internos, fora do alcance do cliente)
+    const anexos = await um<{ pdf_mime: string; foto_mime: string; pdf_vis: boolean; foto_vis: boolean }>(
+      `select dp.mime pdf_mime, df.mime foto_mime, dp.visivel_cliente pdf_vis, df.visivel_cliente foto_vis
+         from relatorio_notas_compras n join documentos dp on dp.id = n.pdf_documento_id join documentos df on df.id = n.foto_documento_id
+        where n.relatorio_id = $1`, [rdoId])
+    expect(anexos).toEqual({ pdf_mime: 'application/pdf', foto_mime: 'image/webp', pdf_vis: false, foto_vis: false })
     // a foto anexada antes de salvar subiu com a legenda, ligada ao RDO criado
     await expect.poll(async () => await sql('select legenda from fotos where relatorio_id = $1', [rdoId])).toEqual([{ legenda: 'Laje concretada — vista do eixo B' }])
     await expect(secao(page, 'Galeria de Fotos').getByLabel('Legenda da foto')).toHaveValue('Laje concretada — vista do eixo B')
@@ -273,7 +290,7 @@ test.describe.serial('RDO de ponta a ponta', () => {
     expect((await um<{ d: string }>('select descricao d from relatorio_atividades where relatorio_id = $1 order by ordem desc limit 1', [rdoId])).d).toBe(`${ATIVIDADE} (revisado)`)
 
     // PDF do RDO (equipe: com notas de compras)
-    const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'PDF' }).click()])
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'PDF', exact: true }).click()])
     expect(dl.suggestedFilename()).toMatch(new RegExp(`^RD-${rdoNumero}-.+\\.pdf$`))
     const pdf = await lerPdf(await dl.path())
     expect(pdf.paginas).toBeGreaterThanOrEqual(1)
@@ -399,7 +416,7 @@ test.describe.serial('RDO de ponta a ponta', () => {
     for (const corpo of respostasNotas) expect(corpo).toBe('[]')
 
     // PDF do cliente: sem notas
-    const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'PDF' }).click()])
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'PDF', exact: true }).click()])
     const pdf = await lerPdf(await dl.path())
     expect(pdf.texto).toContain(`RD-${rdoNumero}`)
     expect(pdf.texto).toContain(`${ATIVIDADE} (revisado)`)

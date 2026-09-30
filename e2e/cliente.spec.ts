@@ -66,7 +66,7 @@ test.describe('Portal do cliente @celular', () => {
     // PDF de um RDO aprovado, pela linha do tempo
     await page.getByRole('tab', { name: /Linha do tempo/ }).click()
     const primeiro = page.locator('ol > li').first()
-    const [dl] = await Promise.all([page.waitForEvent('download'), primeiro.getByRole('button', { name: 'PDF' }).click()])
+    const [dl] = await Promise.all([page.waitForEvent('download'), primeiro.getByRole('button', { name: 'PDF', exact: true }).click()])
     const pdf = await lerPdf(await dl.path())
     expect(pdf.paginas).toBeGreaterThanOrEqual(1)
     expect(pdf.texto).toContain('Residencial Vista Azul')

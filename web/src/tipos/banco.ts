@@ -142,6 +142,10 @@ export interface NotaCompra extends FilhoBase {
   numero_nota: string | null
   valor: Grande | null
   descricao: string | null
+  /** PDF da nota (registro em `documentos`, interno). */
+  pdf_documento_id?: string | null
+  /** Foto da nota (registro em `documentos`, interno). */
+  foto_documento_id?: string | null
 }
 
 /* ------------------------------------------------ cadastros da empresa -- */

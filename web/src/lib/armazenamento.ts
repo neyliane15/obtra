@@ -205,7 +205,7 @@ export async function enviarLogo(arquivo: File, empresaId: string) {
   return caminho
 }
 
-export async function enviarDocumento(arquivo: File, empresaId: string, obraId: string, visivelCliente: boolean): Promise<Documento> {
+export async function enviarDocumento(arquivo: File, empresaId: string, obraId: string, visivelCliente: boolean, nome = arquivo.name): Promise<Documento> {
   const blob = await compactarPdf(arquivo)
   await garantirEspaco(empresaId, blob.size)
   const path = `${empresaId}/${obraId}/docs/${novoId()}.pdf`
@@ -214,12 +214,33 @@ export async function enviarDocumento(arquivo: File, empresaId: string, obraId: 
     .from('documentos')
     .insert({
       obra_id: obraId,
-      nome: arquivo.name,
+      nome,
       path,
       bytes: blob.size,
       mime: 'application/pdf',
       visivel_cliente: visivelCliente,
     })
+    .select('*')
+    .single()
+  if (error) {
+    await removerArquivos([path])
+    throw error
+  }
+  return data as Documento
+}
+
+/**
+ * Foto guardada como documento interno (ex.: foto da nota fiscal): comprimida
+ * como as fotos (WebP 1600 px), mas fora da galeria — o cliente não a vê.
+ */
+export async function enviarImagemComoDocumento(arquivo: File, empresaId: string, obraId: string, nome: string): Promise<Documento> {
+  const { foto } = await comprimirFoto(arquivo)
+  await garantirEspaco(empresaId, foto.blob.size)
+  const path = `${empresaId}/${obraId}/docs/${novoId()}.${extensaoDoMime(foto.mime)}`
+  await subir(path, foto.blob, foto.mime)
+  const { data, error } = await supabase
+    .from('documentos')
+    .insert({ obra_id: obraId, nome, path, bytes: foto.blob.size, mime: foto.mime, visivel_cliente: false })
     .select('*')
     .single()
   if (error) {

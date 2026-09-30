@@ -5,7 +5,7 @@ import { clsx } from 'clsx'
 import {
   ArrowLeft, CalendarClock, Camera, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, Clock, Cloud, CloudRain, Copy, FileDown,
   FileText, Hammer, MessageSquare, Moon, PackageCheck, PackageMinus, Plus, Receipt, Save, Send, ShieldAlert, StickyNote, Sun, Sunrise,
-  Sunset, Trash2, Truck, Undo2, UserPlus, Users, X,
+  Loader2, Sunset, Trash2, Truck, Undo2, UserPlus, Users, X,
 } from 'lucide-react'
 import type {
   Atividade, Clima, Condicao, Equipamento, Foto, MaoObra, Material, NotaCompra, Ocorrencia, StatusAtividade,
@@ -19,7 +19,7 @@ import {
 import { usePerfil, useSessao } from '@/lib/sessao'
 import { ehGestor, podeEditarRelatorio } from '@/lib/permissoes'
 import { supabase, exigir, mensagemDeErro } from '@/lib/supabase'
-import { enviarFoto, excluirFoto } from '@/lib/armazenamento'
+import { enviarDocumento, enviarFoto, enviarImagemComoDocumento, excluirDocumento, excluirFoto, urlAssinada } from '@/lib/armazenamento'
 import { calcularPrazo } from '@/lib/prazo'
 import { formatarDuracao, minutosTrabalhados } from '@/lib/horario'
 import {
@@ -119,7 +119,7 @@ export function linhaPreenchida(chave: ChaveLista, l: Record<string, unknown>): 
   const texto = (k: string) => typeof l[k] === 'string' && (l[k] as string).trim().length > 0
   if (chave === 'maoObra') return texto('funcao') || !!l.colaborador_id
   if (chave === 'equipamentos') return texto('nome')
-  if (chave === 'notas') return texto('fornecedor') || texto('numero_nota') || texto('descricao') || l.valor !== null
+  if (chave === 'notas') return texto('fornecedor') || texto('numero_nota') || texto('descricao') || l.valor !== null || !!l.pdf_documento_id || !!l.foto_documento_id
   return texto('descricao')
 }
 
@@ -591,8 +591,8 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
             itens={e.notas}
             editavel={editavel}
             vazio="Nenhuma nota registrada."
-            cabecalho={['Fornecedor', 'Nº da nota', 'Valor (R$)', 'Descrição']}
-            colunas="md:grid-cols-[1fr_120px_130px_1.2fr_32px]"
+            cabecalho={['Fornecedor', 'Nº da nota', 'Valor (R$)', 'Descrição', 'PDF e foto da nota']}
+            colunas="md:grid-cols-[1fr_110px_120px_1.1fr_170px_32px]"
             celular="grid-cols-2"
             aoRemover={(i) => setLista('notas', (l) => l.filter((_, j) => j !== i))}
             botoes={editavel && <BotaoLinha onClick={() => setLista('notas', (l) => [...l, { id: novoId(), relatorio_id: relId, ordem: l.length, fornecedor: '', numero_nota: '', valor: null, descricao: '' }])}>Adicionar nota</BotaoLinha>}
@@ -604,6 +604,7 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
                   <Entrada value={n.numero_nota ?? ''} onChange={(ev) => up({ numero_nota: ev.target.value })} placeholder="000123" className="font-mono" aria-label="Número da nota" />
                   <Entrada inputMode="decimal" value={n.valor === null ? '' : String(n.valor)} onChange={(ev) => up({ valor: ev.target.value === '' ? null : ev.target.value })} onBlur={(ev) => up({ valor: lerNumero(ev.target.value) })} placeholder="0,00" className="num text-right" aria-label="Valor" />
                   <Entrada value={n.descricao ?? ''} onChange={(ev) => up({ descricao: ev.target.value })} placeholder="Descrição" aria-label="Descrição da nota" />
+                  <AnexosNota nota={n} editavel empresaId={o?.empresa_id} obraId={e.obraId} aoMudar={up} />
                 </>
               ) : (
                 <>
@@ -611,6 +612,7 @@ function EditorRelatorio({ dados }: { dados: RelatorioCompleto | null }) {
                   <span className="font-mono text-[12px]">{n.numero_nota || '—'}</span>
                   <span className="num text-right font-semibold">{formatarMoeda(lerNumero(n.valor as string | number | null))}</span>
                   <span className="text-tinta-suave">{n.descricao}</span>
+                  <AnexosNota nota={n} editavel={false} empresaId={o?.empresa_id} obraId={e.obraId} aoMudar={up} />
                 </>
               )
             }}
@@ -1099,6 +1101,103 @@ function SecaoMateriais({
         </>
       )}
     </Painel>
+  )
+}
+
+/* --------------------------------------------------- anexos da nota -- */
+/** PDF e foto da nota de compra, vinculados à própria nota (documentos internos). */
+function AnexosNota({ nota, editavel, empresaId, obraId, aoMudar }: {
+  nota: NotaCompra
+  editavel: boolean
+  empresaId?: string
+  obraId: string
+  aoMudar: (p: Partial<NotaCompra>) => void
+}) {
+  const avisos = useAvisos()
+  const qc = useQueryClient()
+  const [enviando, setEnviando] = useState<null | 'pdf' | 'foto'>(null)
+  const ids = [nota.pdf_documento_id, nota.foto_documento_id].filter((x): x is string => !!x)
+  const docs = useQuery({
+    queryKey: ['anexos-nota', ...ids],
+    enabled: ids.length > 0,
+    queryFn: async () => exigir(await supabase.from('documentos').select('id, nome, path, mime').in('id', ids)) as { id: string; nome: string; path: string; mime: string | null }[],
+  })
+  const pdf = docs.data?.find((d) => d.id === nota.pdf_documento_id)
+  const foto = docs.data?.find((d) => d.id === nota.foto_documento_id)
+  const miniatura = useQuery({ queryKey: ['url-assinada', foto?.path], enabled: !!foto, queryFn: () => urlAssinada(foto!.path) })
+  const pronto = !!empresaId && !!obraId
+  const rotulo = nota.numero_nota ? `Nota ${nota.numero_nota}` : 'Nota de compra'
+
+  async function anexar(tipo: 'pdf' | 'foto', arquivo: File) {
+    if (!empresaId || !obraId) return avisos.erro('Escolha a obra do relatório antes de anexar.')
+    setEnviando(tipo)
+    try {
+      const nome = `${rotulo}${nota.fornecedor ? ` · ${nota.fornecedor}` : ''} (${tipo === 'pdf' ? 'PDF' : 'foto'})`
+      const d = tipo === 'pdf' ? await enviarDocumento(arquivo, empresaId, obraId, false, nome) : await enviarImagemComoDocumento(arquivo, empresaId, obraId, nome)
+      aoMudar(tipo === 'pdf' ? { pdf_documento_id: d.id } : { foto_documento_id: d.id })
+      void qc.invalidateQueries({ queryKey: ['documentos', obraId] })
+      avisos.sucesso(tipo === 'pdf' ? 'PDF da nota anexado.' : 'Foto da nota anexada.')
+    } catch (err) {
+      avisos.erro(err)
+    } finally {
+      setEnviando(null)
+    }
+  }
+  async function tirar(tipo: 'pdf' | 'foto') {
+    const d = tipo === 'pdf' ? pdf : foto
+    const ok = await avisos.confirmar({ titulo: tipo === 'pdf' ? 'Remover o PDF da nota?' : 'Remover a foto da nota?', confirmar: 'Remover', perigo: true, descricao: 'O arquivo será apagado do armazenamento.' })
+    if (!ok) return
+    try {
+      if (d) await excluirDocumento(d)
+      aoMudar(tipo === 'pdf' ? { pdf_documento_id: null } : { foto_documento_id: null })
+      void qc.invalidateQueries({ queryKey: ['documentos', obraId] })
+    } catch (err) {
+      avisos.erro(err)
+    }
+  }
+  async function abrir(caminho?: string) {
+    if (!caminho) return
+    const u = await urlAssinada(caminho)
+    if (u) window.open(u, '_blank', 'noopener')
+  }
+
+  const escolher = (tipo: 'pdf' | 'foto') => {
+    const i = document.createElement('input')
+    i.type = 'file'
+    i.accept = tipo === 'pdf' ? 'application/pdf' : 'image/*'
+    i.onchange = () => { const f = i.files?.[0]; if (f) void anexar(tipo, f) }
+    i.click()
+  }
+  const chip = 'inline-flex h-8 items-center gap-1.5 rounded-md border px-2 text-[11.5px] font-medium'
+
+  return (
+    <div className="flex items-center gap-1.5" aria-label={`Anexos da ${rotulo.toLowerCase()}`}>
+      {nota.pdf_documento_id ? (
+        <span className={clsx(chip, 'border-marinho-200 bg-marinho-50 text-marinho-800')}>
+          <button type="button" className="inline-flex items-center gap-1 hover:underline" onClick={() => void abrir(pdf?.path)} title={pdf?.nome ?? 'Abrir PDF'} aria-label="Abrir PDF da nota">
+            <FileText className="size-3.5" /> PDF
+          </button>
+          {editavel && <button type="button" onClick={() => void tirar('pdf')} className="text-tinta-fraca hover:text-perigo-600" aria-label="Remover PDF da nota"><X className="size-3" /></button>}
+        </span>
+      ) : editavel ? (
+        <button type="button" disabled={!pronto || !!enviando} onClick={() => escolher('pdf')} aria-label="Anexar PDF da nota" className={clsx(chip, 'border-dashed border-linha-forte text-tinta-suave hover:border-marinho-400 hover:text-marinho-800 disabled:opacity-50')} title={pronto ? 'Anexar o PDF da nota' : 'Escolha a obra primeiro'}>
+          {enviando === 'pdf' ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />} PDF
+        </button>
+      ) : null}
+      {nota.foto_documento_id ? (
+        <span className={clsx(chip, 'border-marinho-200 bg-marinho-50 pl-0.5 text-marinho-800')}>
+          <button type="button" className="inline-flex items-center gap-1 hover:underline" onClick={() => void abrir(foto?.path)} title={foto?.nome ?? 'Abrir foto'} aria-label="Abrir foto da nota">
+            {miniatura.data ? <img src={miniatura.data} alt="Foto da nota" className="size-7 rounded object-cover" /> : <Camera className="ml-1 size-3.5" />} Foto
+          </button>
+          {editavel && <button type="button" onClick={() => void tirar('foto')} className="text-tinta-fraca hover:text-perigo-600" aria-label="Remover foto da nota"><X className="size-3" /></button>}
+        </span>
+      ) : editavel ? (
+        <button type="button" disabled={!pronto || !!enviando} onClick={() => escolher('foto')} aria-label="Anexar foto da nota" className={clsx(chip, 'border-dashed border-linha-forte text-tinta-suave hover:border-marinho-400 hover:text-marinho-800 disabled:opacity-50')} title={pronto ? 'Anexar a foto da nota' : 'Escolha a obra primeiro'}>
+          {enviando === 'foto' ? <Loader2 className="size-3.5 animate-spin" /> : <Camera className="size-3.5" />} Foto
+        </button>
+      ) : null}
+      {!editavel && !nota.pdf_documento_id && !nota.foto_documento_id && <span className="text-tinta-fraca">—</span>}
+    </div>
   )
 }
 
